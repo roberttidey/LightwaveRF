@@ -20,3 +20,7 @@ LxTx - a library for LightwaveRF transmit
  
  LxTxTest - simple Test sketch for LwTx lib, continuously sends a message
  LxRxTest - simple Test sketch for LwRx lib, monitors and prints messages on serial port
+
+Notes: As these libraries use interrupt service routines they may have issues with other
+services using interrupts like Serial. The time spent in the isrs is kept very small to minimise
+risks. The LxTx library also uses Timer2 and assumes 16MHz clock rates.
