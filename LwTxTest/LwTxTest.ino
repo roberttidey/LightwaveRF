@@ -5,8 +5,8 @@ long timeout = 0;
 
 void setup() {
   Serial.begin(9600);
-  //Transmit on pin 7, 10 repeats
-  lwtx_setup(7, 10);
+  //Transmit on pin 7, 10 repeats,no invert, 140uSec tick)
+  lwtx_setup(7, 10, 0, 140);
 }
 
 void loop() {
