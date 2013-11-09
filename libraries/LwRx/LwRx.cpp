@@ -44,7 +44,7 @@ void rx_process_bits() {
   if (dur < 160) { //160 very short
   } else if (dur < 500) { // normal short pulse
     event +=2;
-  } else if (dur < 1500) { // normal long pulse
+  } else if (dur < 2000) { // normal long pulse
     event +=4;
   } else if (dur > 5000){ // gap between messages
     event +=6;
