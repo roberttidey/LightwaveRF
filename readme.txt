@@ -37,3 +37,6 @@ A 1 followed by 0 therefore is 280uSec high followed by 1260uSec low
 Added the function lwtx_setCounts to allow tuning of the tick counts for experimentation
 
 Added new sketch LwTxTestEx for experimentation
+
+Update 11 Nov 2013
+Added stats gathering onto RX library and test sketch so that timings can be measured.
