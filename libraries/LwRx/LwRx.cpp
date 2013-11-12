@@ -29,6 +29,10 @@ static const byte rx_state_getbyte = 3;
 static byte rx_num_bits = 0; // number of bits in the current byte
 static byte rx_num_bytes = 0; // number of bytes received 
 
+// Gather stats for pulse widths (ave is x 16)
+static const unsigned int lwrx_statsdflt[rx_stat_count] = {5000,0,5000,20000,0,2500,4000,0,500};
+static unsigned int lwrx_stats[rx_stat_count];
+static boolean lwrx_stats_enable = true;
 
 /**
   Pin change interrupt routine that identifies 1 and 0 LightwaveRF bits
@@ -41,14 +45,14 @@ void rx_process_bits() {
   unsigned int dur = (curr-rx_prev);
   rx_prev = curr;
   //set event based on input and duration of previous pulse
-  if (dur < 160) { //160 very short
+  if (dur < 120) { //120 very short
   } else if (dur < 500) { // normal short pulse
     event +=2;
   } else if (dur < 2000) { // normal long pulse
     event +=4;
   } else if (dur > 5000){ // gap between messages
     event +=6;
-  } else { //1500 > 5000
+  } else { //2000 > 5000
     event = 8; //illegal gap
   } 
   //state machine transitions 
@@ -99,18 +103,33 @@ void rx_process_bits() {
     case rx_state_getbyte:
       switch(event) {
         case 2: //0 160->500
-          //nothing to do wait for next positive edge
+          //nothing to do wait for next positive edge but do stats
+          if (lwrx_stats_enable) {
+            lwrx_stats[rx_stat_high_max] = max(lwrx_stats[rx_stat_high_max], dur);
+            lwrx_stats[rx_stat_high_min] = min(lwrx_stats[rx_stat_high_min], dur);
+            lwrx_stats[rx_stat_high_ave] = lwrx_stats[rx_stat_high_ave] - (lwrx_stats[rx_stat_high_ave] >> 4) + dur;
+          }
           break;
         case 3: //1 160->500
           // a single 1
           rx_buf[rx_num_bytes] = rx_buf[rx_num_bytes] << 1 | 1;
           rx_num_bits++;
+          if (lwrx_stats_enable) {
+            lwrx_stats[rx_stat_low1_max] = max(lwrx_stats[rx_stat_low1_max], dur);
+            lwrx_stats[rx_stat_low1_min] = min(lwrx_stats[rx_stat_low1_min], dur);
+            lwrx_stats[rx_stat_low1_ave] = lwrx_stats[rx_stat_low1_ave] - (lwrx_stats[rx_stat_low1_ave] >> 4) + dur;
+          }
           break;
         case 5: //1 500->1500
           // a 1 followed by a 0
           rx_buf[rx_num_bytes] = rx_buf[rx_num_bytes] << 2 | 2;
           rx_num_bits++;
           rx_num_bits++;
+          if (lwrx_stats_enable) {
+            lwrx_stats[rx_stat_low0_max] = max(lwrx_stats[rx_stat_low0_max], dur);
+            lwrx_stats[rx_stat_low0_min] = min(lwrx_stats[rx_stat_low0_min], dur);
+            lwrx_stats[rx_stat_low0_ave] = lwrx_stats[rx_stat_low0_ave] - (lwrx_stats[rx_stat_low0_ave] >> 4) + dur;
+          }
           break;
         default:
           //not good start again
@@ -183,6 +202,30 @@ boolean lwrx_getmessage(byte  *buf, byte *len) {
 }
 
 /**
+  Return stats on high and low pulses
+**/
+boolean lwrx_getstats(unsigned int *stats) {
+   if (lwrx_stats_enable) {
+     memcpy(stats, lwrx_stats, 2 * rx_stat_count);
+     return true;
+   } else {
+     return false;
+   }
+}
+
+/**
+  Set stats mode
+**/
+void lwrx_setstatsenable(boolean rx_stats_enable)
+{
+    lwrx_stats_enable = rx_stats_enable;
+    if (!lwrx_stats_enable) {
+       //clear down stats when disabling
+       memcpy(lwrx_stats, lwrx_statsdflt, sizeof(lwrx_statsdflt));
+    }
+}
+
+/**
   Set things up to receive LighWaveRF 434Mhz messages
   pin must be 2 or 3 to trigger interrupts
 **/
@@ -194,5 +237,6 @@ void lwrx_setup(int pin) {
   }
   pinMode(rx_pin,INPUT);
   attachInterrupt(rx_pin - 2, rx_process_bits, CHANGE);
+  memcpy(lwrx_stats, lwrx_statsdflt, sizeof(lwrx_statsdflt));
 }
 
