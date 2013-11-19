@@ -40,3 +40,10 @@ Added new sketch LwTxTestEx for experimentation
 
 Update 11 Nov 2013
 Added stats gathering onto RX library and test sketch so that timings can be measured.
+
+Update 19 Nov 2013
+Added pairing and filtering to rx library
+Added set address to tx library and short cmd method after address set
+Reworked LwTxTestEx and LwRxTest sketches to respond to serial port commands
+Sketches can save pairing and address details to EEPROM
+NOTE interface to getmessage in RX library has changed, len is passed as a value rather than a pointer.

@@ -1,8 +1,30 @@
 #include <LwTx.h>
+#include <EEPROM.h>
 
-//Replace these with appropriate test messages
-byte msgon[] = {1,15,3,1,5,9,3,0,1,2};
-byte msgoff[] = {4,0,3,0,5,9,3,0,1,2};
+#define echo true
+
+#define feedback
+#ifdef feedback
+  #define pr(x) Serial.print(x)
+  #define prln(x) Serial.println(x)
+#else
+  #define pr(x)
+  #define prln(x)
+#endif
+
+//define EEPROMaddr to location to store message addr or -1 to skip EEPROM
+#define EEPROMaddr 0
+
+//Address of transmitter
+byte addr[] = {0,0,0,0,0};
+
+// Command values
+byte command = 0;
+byte parameter = 0;
+byte device = 7;
+byte room = 7;
+
+//Basic init values
 byte invert = 0;
 int uSec = 140;
 int txpin = 7;
@@ -14,64 +36,134 @@ byte highCount = 4;
 byte trailCount = 2;
 byte gapCount = 72;
 
+//Serial message input
+const byte maxvalues = 8;
+byte index;
+boolean newvalue;
+int invalues[maxvalues];
+
 void setup() {
-  Serial.begin(9600);
-  lwtx_setup(txpin, repeats, invert, uSec);
+   Serial.begin(9600);
+   Serial.setTimeout(1000 * 60);
+   lwtx_setup(txpin, repeats, invert, uSec);
+   prln("LwTx initial setup complete");
+   index = 0;
+   invalues[0] = 0;
+   newvalue = false;
+   if(EEPROMaddr >= 0) {
+      for(int i=0; i<5; i++) {
+        addr[i] = EEPROM.read(EEPROMaddr+i);
+      }
+      lwtx_setaddr(addr);
+   }
 }
 
 void loop() {
-  int inchar;
-  if(Serial.available()) {
-    inchar = Serial.read();
-    Serial.print("Received:");
-    Serial.print(inchar);
-    if (lwtx_free()) {
-      if (inchar == 48) { //0
-        Serial.println("  - Sending Off");
-        lwtx_send(msgoff);
-      } else if (inchar == 49) { //1
-        Serial.println("  - Sending On");
-        lwtx_send(msgon);
-      } else if (inchar == 50) { //2
-        Serial.print("  - Toggle invert to ");
-        invert = invert ^ 1;
-        lwtx_setup(txpin, repeats, invert, uSec);
-        Serial.println(invert);
-      } else if (inchar == 51) { //3
-        Serial.print("  - Decrease clock uSec to ");
-        uSec = uSec - 4;
-        lwtx_setup(txpin, repeats, invert, uSec);
-        Serial.println(uSec);
-      } else if (inchar == 52) { //4
-        Serial.print("  - Increase clock uSec to ");
-        uSec = uSec + 4;
-        lwtx_setup(txpin, repeats, invert, uSec);
-        Serial.println(uSec);
-      } else if (inchar == 53) { //5
-        Serial.print("  - Decrease clock uSec to ");
-        uSec = uSec - 20;
-        lwtx_setup(txpin, repeats, invert, uSec);
-        Serial.println(uSec);
-      } else if (inchar == 54) { //6
-        Serial.print("  - Increase clock uSec to ");
-        uSec = uSec + 20;
-        lwtx_setup(txpin, repeats, invert, uSec);
-        Serial.println(uSec);
-      } else if (inchar == 55) { //7
-        Serial.print("  - Increase lowCount to ");
-        lowCount++;
-        lwtx_setTickCounts(lowCount, highCount, trailCount, gapCount);
-        Serial.println(lowCount);
-      } else if (inchar == 56) { //8
-        Serial.print("  - Decrease lowCount to ");
-        lowCount--;
-        lwtx_setTickCounts(lowCount, highCount, trailCount, gapCount);
-        Serial.println(lowCount);
-      } else {
-        Serial.println("  - Null");
+   //collect any incoming command message and execute when complete
+   if(getMessage()){
+      // wait for any previous command to complete
+      if (!lwtx_free()) {
+         prln("Wait for last msg to complete");
+         do {
+            delay(100);
+         } while (!lwtx_free());
+         prln("Wait finished");
       }
-    }
-  }
-  delay(100);
+      switch(invalues[0]) {
+         case 1: // init,repeats,uSec,invert
+            if(index > 1) repeats = invalues[1];
+            if(index > 2) uSec = invalues[2];
+            if(index > 3) invert = invalues[3];
+            lwtx_setup(txpin, repeats, invert, uSec);
+            pr("LwTx setup. repeats=");pr(repeats);
+            pr(" uSec=");pr(uSec);
+            pr(" invert=");prln(invert);
+           break;
+         case 2: // counts,lowCount,highCount,trailCount,gapCount
+            if(index > 1) lowCount = invalues[1];
+            if(index > 2) highCount = invalues[2];
+            if(index > 3) trailCount = invalues[3];
+            if(index > 4) gapCount = invalues[4];
+            lwtx_setTickCounts(lowCount, highCount, trailCount, gapCount);
+            pr("LwTx Counts. low=");pr(lowCount);
+            pr(" high=");pr(highCount);
+            pr(" trail=");pr(trailCount);
+            pr(" gap=");prln(gapCount);
+            break;
+         case 3: // address,ad1,ad2,ad3,ad4,ad5
+            pr("Address set to ");
+            for (byte i = 0; i < 5; i++) {
+               if(index >= 6) {
+                  addr[i] = invalues[i+1];
+                  if(EEPROMaddr >= 0) {
+                     EEPROM.write(EEPROMaddr + i, invalues[i+1]);
+                  }
+               }
+               pr(addr[i]);pr("-");
+            }
+            prln();
+            lwtx_setaddr(addr);
+            if(index >= 6) {
+               prln("Address updated");
+            }
+            break;
+         case 4: // send message,cmd,par,room,device
+            if(index > 1) command = invalues[1];
+            if(index > 2) parameter = invalues[2];
+            if(index > 3) room = invalues[3];
+            if(index > 4) device = invalues[4];
+            lwtx_cmd(command, parameter, room, device);
+            prln("LwTx command sent.");
+            break;
+         case 5: // send gapMultiplier
+            if(index > 1) {
+               lwtx_setGapMultiplier(invalues[1]);
+               pr("LwTx gap multiplier ");
+               prln(invalues[1]);
+            } else {
+               prln("No parameter for Gap multiplier. Ignored.");
+            }
+            break;
+         default:
+            help();
+            break;
+      }
+      index = 0;
+      invalues[0] = 0;
+   }
+   delay(100);
 }
 
+boolean getMessage() {
+   int inchar;
+   
+   if(Serial.available()) {
+      inchar = Serial.read();
+      if (echo) Serial.write(inchar);
+      if(inchar == 10 || inchar == 13) {
+         if (newvalue) index++;
+         newvalue = false;
+         if (echo && inchar != 10) Serial.println();
+         return true;
+      } else if ((index < maxvalues) && inchar >= 48 && inchar <= 57) {
+         invalues[index] = invalues[index] * 10 + (inchar - 48);
+         newvalue = true;
+      } else if (index < (maxvalues - 1)) {
+         index++;
+         invalues[index] = 0;
+         newvalue = false;
+      }
+   }
+   return false;
+}
+
+void help() {
+   Serial.println("Commands:");
+   Serial.println("  1:init  1,repeats,[clocktick],[invert]");
+   Serial.println("  2:tick  2,tlow,thigh,ttrail,tgap");
+   Serial.println("  3:addr  3,aad1,ad2,ad3,ad4,ad5");
+   Serial.println("  4:send  4,cmd,par,[room],[device]");
+   Serial.println("  5:gapm  5,gapMultiplier");
+   Serial.println("[] Defaults to last value if not entered");
+  
+}

@@ -16,15 +16,36 @@
 #define rx_stat_low1_min 8
 #define rx_stat_count 9
 
+#define rx_maxpairs 10
+
+
+//Setup must be called once, set up pin used to receive data
 extern void lwrx_setup(int pin);
 
+//Set translate to determine whether translating from nibbles to bytes in message
+//Translate off only applies to 10char message returns
 extern void lwrx_settranslate(boolean translate);
 
+// Check to see whether message available
 extern boolean lwrx_message();
 
-extern boolean lwrx_getmessage(byte* buf, byte* len);
+//Get a message, len controls format (2 cmd+param, 4 cmd+param+room+device),10 full message
+extern boolean lwrx_getmessage(byte* buf, byte len);
 
+//Setup repeat filter
+extern void lwrx_setfilter(byte repeats, byte timeout);
+
+//Add pair, if no pairing set then all messages are received, returns number of pairs
+extern byte lwrx_addpair(byte* pairdata);
+
+extern void lwrx_clearpairing();
+
+//Return stats on pulse timings
 extern boolean lwrx_getstats(unsigned int* stats);
 
+//Enable collection of stats on pulse timings
 extern void lwrx_setstatsenable(boolean rx_stats_enable);
+
+boolean rx_checkPairs();
+int rx_findNibble(byte data);
 

@@ -23,12 +23,18 @@ static byte tx_buf[tx_msglen]; // the message buffer during reception
 static byte tx_repeat = 0; //counter for repeats
 static byte tx_state = 0;
 static byte tx_toggle_count = 3;
+static unsigned int tx_gap_repeat = 0;
 
 // These set the pulse durations in ticks
 static byte tx_low_count = 7; // total number of ticks in a low (980 uSec)
 static byte tx_high_count = 4; // total number of ticks in a high (560 uSec)
 static byte tx_trail_count = 2; //tick count to set line low (280 uSec)
+// Use with low repeat counts
 static byte tx_gap_count = 72; // Inter-message gap count (10.8 msec)
+//Gap multiplier byte is used to multiply gap if longer periods are needed for experimentation
+//If gap is 255 (35msec) then this to give a max of 9 seconds
+//Used with low repeat counts to find if device times out
+static byte tx_gap_multiplier = 0; //Gap extension byte 
 
 static const byte tx_state_idle = 0;
 static const byte tx_state_msgstart = 1;
@@ -93,10 +99,15 @@ ISR(TIMER2_COMPA_vect){
        case tx_state_msgend:
          digitalWrite(tx_pin, txon);
          tx_state = tx_state_gapstart;
+         tx_gap_repeat = tx_gap_multiplier;
          break;
        case tx_state_gapstart:
          tx_toggle_count = tx_gap_count;
-         tx_state = tx_state_gapend;
+         if (tx_gap_repeat == 0) {
+            tx_state = tx_state_gapend;
+         } else {
+            tx_gap_repeat--;
+         }
          break;
        case tx_state_gapend:
          tx_repeat++;
@@ -137,7 +148,31 @@ void lwtx_send(byte *msg) {
 }
 
 /**
-  Set things up to transmit LighWaveRF 434Mhz messages
+  Set 5 char address for future messages
+**/
+void lwtx_setaddr(byte *addr) {
+   for (byte i=0; i < 5; i++) {
+   tx_buf[i+4] = tx_nibble[addr[i] & 0xF];
+   }
+}
+
+/**
+  Send a LightwaveRF message (10 nibbles in bytes)
+**/
+void lwtx_cmd(byte command, byte parameter, byte room, byte device) {
+  //enable timer 2 interrupts
+  tx_buf[0] = tx_nibble[parameter >> 4];
+  tx_buf[1] = tx_nibble[parameter  & 0xF];
+  tx_buf[2] = tx_nibble[device  & 0xF];
+  tx_buf[3] = tx_nibble[command  & 0xF];
+  tx_buf[9] = tx_nibble[room  & 0xF];
+   //enable timer 2 interrupts
+  TIMSK2 |= (1 << OCIE2A);
+  tx_msg_active = true;
+}
+
+/**
+  Set things up to transmit LightWaveRF 434Mhz messages
 **/
 void lwtx_setup(int pin, byte repeats, byte invert, int uSec) {
   if(pin !=0) {
@@ -185,5 +220,9 @@ void lwtx_setTickCounts( byte lowCount, byte highCount, byte trailCount, byte ga
      tx_high_count = highCount;
      tx_trail_count = trailCount;
      tx_gap_count = gapCount;
+}
+
+void lwtx_setGapMultiplier(byte gapMultiplier) {
+   tx_gap_multiplier = gapMultiplier;
 }
 
