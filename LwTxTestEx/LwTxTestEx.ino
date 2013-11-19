@@ -1,7 +1,8 @@
 #include <LwTx.h>
 
-byte msgon[] = {1,15,2,1,3,1,7,9,6,1};
-byte msgoff[] = {4,0,2,0,3,1,7,9,6,1};
+//Replace these with appropriate test messages
+byte msgon[] = {1,15,3,1,5,9,3,0,1,2};
+byte msgoff[] = {4,0,3,0,5,9,3,0,1,2};
 byte invert = 0;
 int uSec = 140;
 int txpin = 7;

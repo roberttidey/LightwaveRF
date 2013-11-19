@@ -1,6 +1,6 @@
 #include <LwTx.h>
 
-byte msg[] = {4,0,0,0,3,1,7,9,6,1};
+byte msg[] = {4,0,3,0,5,9,3,0,1,2};
 long timeout = 0;
 
 void setup() {
