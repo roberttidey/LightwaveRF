@@ -47,3 +47,8 @@ Added set address to tx library and short cmd method after address set
 Reworked LwTxTestEx and LwRxTest sketches to respond to serial port commands
 Sketches can save pairing and address details to EEPROM
 NOTE interface to getmessage in RX library has changed, len is passed as a value rather than a pointer.
+
+Updated 20 Nov 2013
+EEPROM functions moved to library
+Pairing functions enhanced
+Auto pairing mode where a pair can be created from a received message
