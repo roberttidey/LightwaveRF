@@ -1,6 +1,5 @@
 #include <LwTx.h>
 #include <EEPROM.h>
-
 #define echo true
 
 #define feedback
@@ -11,9 +10,6 @@
   #define pr(x)
   #define prln(x)
 #endif
-
-//define EEPROMaddr to location to store message addr or -1 to skip EEPROM
-#define EEPROMaddr 0
 
 //Address of transmitter
 byte addr[] = {0,0,0,0,0};
@@ -50,12 +46,6 @@ void setup() {
    index = 0;
    invalues[0] = 0;
    newvalue = false;
-   if(EEPROMaddr >= 0) {
-      for(int i=0; i<5; i++) {
-        addr[i] = EEPROM.read(EEPROMaddr+i);
-      }
-      lwtx_setaddr(addr);
-   }
 }
 
 void loop() {
@@ -95,9 +85,6 @@ void loop() {
             for (byte i = 0; i < 5; i++) {
                if(index >= 6) {
                   addr[i] = invalues[i+1];
-                  if(EEPROMaddr >= 0) {
-                     EEPROM.write(EEPROMaddr + i, invalues[i+1]);
-                  }
                }
                pr(addr[i]);pr("-");
             }

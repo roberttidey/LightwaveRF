@@ -11,9 +11,6 @@
 #endif
  
 #define echo true
-//define EEPROMaddr to location to store pair data or -1 to skip EEPROM
-//First byte is pair count followed by 8 byte pair addresses (device,dummy,5*addr,room)
-#define EEPROMaddr 16
 
 unsigned long millisOffset = millis();
 
@@ -25,6 +22,9 @@ byte msglen = 10;
 static byte repeats = 0;
 static byte timeout = 20;
 
+//pair data
+static byte pairtimeout = 50;
+
 //Serial message input
 const byte maxvalues = 10;
 byte index;
@@ -35,7 +35,6 @@ void setup() {
    // set up with rx into pin 2
    lwrx_setup(2);
    Serial.begin(9600);
-   restoreEEPROMPairing();
    prln("Set up completed and stats enabled");
    //Serial.println("Set up completed and stats enabled");
    index = 0;
@@ -71,14 +70,12 @@ void loop() {
                }
                prln(" Pair added");
                lwrx_addpair(pair);
-               saveEEPROMPair(pair);
             } else {
                prln("Insufficient pair data.");
             }
             break;
          case 5: // Clear pair
             lwrx_clearpairing();
-            clearEEPROMPairing();
             prln("LwRx pairing cleared.");
             break;
          case 6: // Set repeat filter
@@ -101,7 +98,34 @@ void loop() {
             }
             prln();
             break;
-         default:
+          case 8: // Put in pairing mode
+            if (index > 1) pairtimeout = invalues[1];
+            pr("Set into pair mode for 100ms * ");
+            prln(pairtimeout);
+            lwrx_makepair(pairtimeout);
+            break;
+         case 9: // Get and display a pair
+            byte pair[8];
+            byte paircount;
+            paircount = lwrx_getpair(pair, invalues[1]);
+            pr("Paircount=");
+            pr(paircount);
+            if (invalues[1] <= paircount) {
+               pr(" Pair addr");
+               for(byte i = 0; i< 8; i++) {
+                  if(i != 1) {
+                     pr(" ");
+                     pr(pair[i]);
+                  }
+               }
+            }
+            prln();
+            break;
+         case 10: // Time since last packet
+            pr("Last packet delay mS=");
+            prln(lwrx_packetinterval());
+            break;
+        default:
             help();
             break;
       }
@@ -119,13 +143,13 @@ void loop() {
    Retrieve and print out received message
 **/
 void printMsg(byte *msg, byte len) {
-  Serial.print(millis() - millisOffset);
-  Serial.print(" ");
-  for(int i=0;i<len;i++) {
-    Serial.print(msg[i],HEX);
-    Serial.print(" ");
-  }
-  Serial.println();
+   Serial.print(millis() - millisOffset);
+   Serial.print(" ");
+   for(int i=0;i<len;i++) {
+      Serial.print(msg[i],HEX);
+      Serial.print(" ");
+   }
+   Serial.println();
 }
 
 /**
@@ -176,64 +200,6 @@ boolean getMessage() {
    return false;
 }
 
-/**
-   Save pair data to EEPROM if used
-**/
-void saveEEPROMPair(byte *pair) {
-   if(EEPROMaddr >= 0) {
-      byte pairCount = EEPROM.read(EEPROMaddr);
-      if(pairCount > rx_maxpairs) {
-         pairCount= 0;
-         EEPROM.write(EEPROMaddr, 0);
-         prln("Reset pair count");
-      }
-      if(pairCount < rx_maxpairs) {
-         for (byte i = 0; i <= 7; i++) {
-            EEPROM.write(EEPROMaddr + 1 + 8 * pairCount + i, pair[i]);
-         }
-         pairCount++;
-         EEPROM.write(EEPROMaddr, pairCount);
-         pr("Saved pair to EEPROM. Count=");
-         prln(pairCount);
-      } else {
-         prln("Pairs limit reached");
-      }
-   }
-}
-
-/**
-   Retrieve and set up pairing data from EEPROM if used
-**/
-void restoreEEPROMPairing() {
-   if(EEPROMaddr >= 0) {
-      byte pairCount = EEPROM.read(EEPROMaddr);
-      if(pairCount < rx_maxpairs) { 
-         byte pair[8];
-         byte i=0;
-         for( byte i=0; i < pairCount; i++) {
-            pr("Restore pair ");
-            pr(i);
-            for(byte j=0; j<8; j++) {
-               pair[j] = EEPROM.read(EEPROMaddr + 1 + 8 * i + j);
-               pr(" ");
-               pr(pair[j]);
-            }
-            prln();
-            lwrx_addpair(pair);
-         }
-      }
-   }
-}
-
-/**
-   Clear pairing data from EEPROM if used
-**/
-void clearEEPROMPairing() {
-   if(EEPROMaddr >= 0) {
-      EEPROM.write(EEPROMaddr, 0);
-   }
-}
-
 void help() {
    Serial.println("Commands:");
    Serial.println("  1:gets  1,  Get Stats");
@@ -243,6 +209,9 @@ void help() {
    Serial.println("  5:resp  5,  Reset pairs");
    Serial.println("  6:srep  6,repeats,timeout  Set repeat filter");
    Serial.println("  7:msgl  7,n,t Message display len(2,4,10),translate");
+   Serial.println("  8:prmd  8,n Put into pairing mode for up to n * 100mSec");
+   Serial.println("  9:prdt  9,n Get pairdata n");
+   Serial.println(" 10:time 10,  Time in mS since last packet");
    Serial.println("[] Defaults to last value if not entered");
 }
 

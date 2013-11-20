@@ -5,6 +5,9 @@
 // Author: Bob Tidey (robert@tideys.net)
 
 #include <LwRx.h>
+//define EEPROMaddr to location to store pair data or -1 to skip EEPROM
+//First byte is pair count followed by 8 byte pair addresses (device,dummy,5*addr,room)
+#define EEPROMaddr 16
 
 static byte rx_nibble[] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
 
@@ -32,13 +35,14 @@ static byte rx_num_bytes = 0; // number of bytes received
 //Pairing data
 static byte rx_paircount = 0;
 static byte rx_pairs[rx_maxpairs][8];
+static byte rx_pairtimeout = 0; // 100msec units
 
 // Repeat filters
 static byte rx_repeats = 2; //msg must be repeated at least this number of times
 static byte rx_repeatcount = 0;
 static byte rx_timeout = 20; //reset repeat window after this in 100mSecs
-static unsigned long rx_currmsgtime = 0; //current msg time in milliseconds
-static unsigned long rx_prevmsgtime = 0; //last msg time in milliseconds
+static unsigned long rx_prevpkttime = 0; //last packet time in milliseconds
+static unsigned long rx_pairstarttime = 0; //last msg time in milliseconds
 
 // Gather stats for pulse widths (ave is x 16)
 static const unsigned int lwrx_statsdflt[rx_stat_count] = {5000,0,5000,20000,0,2500,4000,0,500};
@@ -151,9 +155,9 @@ void rx_process_bits() {
             rx_num_bytes++;
             rx_num_bits = 0;
             if (rx_num_bytes >= rx_msglen) {
+               unsigned long currMillis = millis();
                if (rx_repeats > 0) {
-                  unsigned long currMillis = millis();
-                  if((currMillis - rx_prevmsgtime) / 100 > rx_timeout) { 
+                  if((currMillis - rx_prevpkttime) / 100 > rx_timeout) { 
                      rx_repeatcount = 1;
                   } else {
                      //Test message same as last one
@@ -168,16 +172,24 @@ void rx_process_bits() {
                         rx_repeatcount = 1;
                      }
                   }
-                  rx_prevmsgtime = currMillis;;
                } else {
                   rx_repeatcount = 0;
                }
+               rx_prevpkttime = currMillis;
                //If last message hasn't been read it gets overwritten
                memcpy(rx_msg, rx_buf, rx_msglen); 
                if (rx_repeats == 0 || rx_repeatcount == rx_repeats) {
-                  if (rx_checkPairs()) {
+                  if (rx_pairtimeout != 0) {
+                     if ((currMillis - rx_pairstarttime) / 100 <= rx_pairtimeout) {
+                        rx_addpairfrommsg();
+                     } else {
+                        rx_pairtimeout = 0;
+                     }
+                  }
+                  if (rx_pairtimeout == 0 && rx_checkPairs(&rx_msg[2])) {
                      rx_msgcomplete = true;
                   }
+                  rx_pairtimeout = 0;
                }
                // And cycle round for next one
                rx_state = rx_state_idle;
@@ -239,6 +251,13 @@ boolean lwrx_getmessage(byte *buf, byte len) {
 }
 
 /**
+  Return time in milliseconds since last packet received
+**/
+unsigned long lwrx_packetinterval() {
+   return millis() - rx_prevpkttime;
+}
+
+/**
   Set up repeat filtering of received messages
 **/
 void lwrx_setfilter(byte repeats, byte timeout) {
@@ -256,7 +275,29 @@ byte lwrx_addpair(byte* pairdata) {
       for(byte i=0; i<8; i++) {
          rx_pairs[rx_paircount][i] = rx_nibble[pairdata[i]];
       }
-      rx_paircount++;
+      rx_paircommit();
+   }
+   return rx_paircount;
+}
+
+/**
+  Make a pair from next message successfully received
+**/
+extern void lwrx_makepair(byte timeout) {
+   rx_pairtimeout = timeout;
+   rx_pairstarttime = millis();
+}
+
+/**
+  Get pair data (translated back to nibble form
+**/
+extern byte lwrx_getpair(byte* pairdata, byte pairnumber) {
+   if (pairnumber < rx_paircount) {
+      int j;
+      for(byte i=0; i<8; i++) {
+         j = rx_findNibble(rx_pairs[pairnumber][i]);
+         if (j>=0) pairdata[i] = j;
+      }
    }
    return rx_paircount;
 }
@@ -266,6 +307,9 @@ byte lwrx_addpair(byte* pairdata) {
 **/
 extern void lwrx_clearpairing() {
    rx_paircount = 0;
+   if(EEPROMaddr >= 0) {
+      EEPROM.write(EEPROMaddr, 0);
+   }
 }
 
 /**
@@ -296,6 +340,7 @@ void lwrx_setstatsenable(boolean rx_stats_enable) {
   pin must be 2 or 3 to trigger interrupts
 **/
 void lwrx_setup(int pin) {
+   restoreEEPROMPairing();
    if(pin == 3) {
       rx_pin = pin;
    } else {
@@ -320,9 +365,36 @@ int rx_findNibble(byte data) {
 }
 
 /**
+  add pair from message buffer
+**/
+void rx_addpairfrommsg() {
+   if(rx_paircount < rx_maxpairs) {
+      memcpy(rx_pairs[rx_paircount], &rx_msg[2], 8);
+      rx_paircommit();
+   }
+}
+
+/**
+  check and commit pair
+**/
+void rx_paircommit() {
+   if (rx_paircount == 0 || !rx_checkPairs(rx_pairs[rx_paircount])) {
+      if(EEPROMaddr >= 0) {
+         for(byte i=0; i<8; i++) {
+            EEPROM.write(EEPROMaddr + 1 + 8 * rx_paircount + i, rx_pairs[rx_paircount][i]);
+         }
+      }
+      rx_paircount++;
+      if(EEPROMaddr >= 0) {
+         EEPROM.write(EEPROMaddr, rx_paircount);
+      }
+   }
+}
+
+/**
   Check to see if message matches one of the pairs
 **/
-boolean rx_checkPairs() {
+boolean rx_checkPairs(byte *buf) {
    boolean pairfound = false;
    if (rx_paircount ==0) {
       return true;
@@ -333,7 +405,7 @@ boolean rx_checkPairs() {
          pairfound = true;
          do {
             if (j != 1) {
-               if (rx_pairs[i][j] != rx_msg[j+2]) {
+               if (rx_pairs[i][j] != buf[j]) {
                   pairfound = false;
                }
             }
@@ -345,4 +417,24 @@ boolean rx_checkPairs() {
       return pairfound;
    }
 }
+
+/**
+   Retrieve and set up pairing data from EEPROM if used
+**/
+void restoreEEPROMPairing() {
+   if(EEPROMaddr >= 0) {
+      rx_paircount = EEPROM.read(EEPROMaddr);
+      if(rx_paircount > rx_maxpairs) {
+         rx_paircount = 0;
+         EEPROM.write(EEPROMaddr, 0);
+      } else {
+         for( byte i=0; i < rx_paircount; i++) {
+            for(byte j=0; j<8; j++) {
+               rx_pairs[i][j] = EEPROM.read(EEPROMaddr + 1 + 8 * i + j);
+            }
+         }
+      }
+   }
+}
+
 

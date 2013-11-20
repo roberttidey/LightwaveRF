@@ -5,6 +5,7 @@
 // Author: Bob Tidey (robert@tideys.net)
 
 #include <Arduino.h>
+#include <../EEPROM/EEPROM.h>
 
 //Sets up basic parameters must be called at least once
 extern void lwtx_setup(int pin, byte repeats, byte invert, int uSec);

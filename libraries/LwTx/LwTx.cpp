@@ -6,6 +6,9 @@
 
 #include <LwTx.h>
 
+//define EEPROMaddr to location to store message addr or -1 to skip EEPROM
+#define EEPROMaddr 0
+
 static byte tx_nibble[] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
 
 static int tx_pin = 3;
@@ -152,7 +155,10 @@ void lwtx_send(byte *msg) {
 **/
 void lwtx_setaddr(byte *addr) {
    for (byte i=0; i < 5; i++) {
-   tx_buf[i+4] = tx_nibble[addr[i] & 0xF];
+      tx_buf[i+4] = tx_nibble[addr[i] & 0xF];
+      if(EEPROMaddr >= 0) {
+         EEPROM.write(EEPROMaddr + i, tx_buf[i+4]);
+      }
    }
 }
 
@@ -175,6 +181,11 @@ void lwtx_cmd(byte command, byte parameter, byte room, byte device) {
   Set things up to transmit LightWaveRF 434Mhz messages
 **/
 void lwtx_setup(int pin, byte repeats, byte invert, int uSec) {
+   if(EEPROMaddr >= 0) {
+      for(int i=0; i<5; i++) {
+        tx_buf[i+4] = EEPROM.read(EEPROMaddr+i);
+      }
+   }
   if(pin !=0) {
     tx_pin = pin;
   }
