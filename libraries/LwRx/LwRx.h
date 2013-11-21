@@ -17,8 +17,8 @@
 #define rx_stat_low1_min 8
 #define rx_stat_count 9
 
+//sets maximum number of pairings which can be held
 #define rx_maxpairs 10
-
 
 //Setup must be called once, set up pin used to receive data
 extern void lwrx_setup(int pin);
@@ -47,6 +47,9 @@ extern byte lwrx_getpair(byte* pairdata, byte pairnumber);
 //This call returns immediately whilst message checking continues
 extern void lwrx_makepair(byte timeout);
 
+//Set pair mode controls
+extern void lwrx_setPairMode(boolean pairEnforce, boolean pairBaseOnly);
+
 //Returns time from last packet received in msec
 // Can be used to determine if Rx may be still receiving repeats
 extern unsigned long lwrx_packetinterval();
@@ -62,5 +65,6 @@ extern void lwrx_setstatsenable(boolean rx_stats_enable);
 int rx_findNibble(byte data);
 void rx_addpairfrommsg();
 void rx_paircommit();
-boolean rx_checkPairs(byte *buf);
+void rx_removePair(byte *buf);
+int rx_checkPairs(byte *buf);
 void restoreEEPROMPairing();

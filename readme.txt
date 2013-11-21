@@ -52,3 +52,7 @@ Updated 20 Nov 2013
 EEPROM functions moved to library
 Pairing functions enhanced
 Auto pairing mode where a pair can be created from a received message
+
+Updated 21 Nov 2013
+Pairing now uses On commands. Off commands try to remove an existing pair.
+Extra pairing controls to enforce pairing even when no pairs are present and to control whether room/device are included

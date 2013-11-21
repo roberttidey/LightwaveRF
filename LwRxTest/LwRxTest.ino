@@ -24,6 +24,8 @@ static byte timeout = 20;
 
 //pair data
 static byte pairtimeout = 50;
+static byte pairEnforce = 0;
+static byte pairBaseOnly = 0;
 
 //Serial message input
 const byte maxvalues = 10;
@@ -36,7 +38,6 @@ void setup() {
    lwrx_setup(2);
    Serial.begin(9600);
    prln("Set up completed and stats enabled");
-   //Serial.println("Set up completed and stats enabled");
    index = 0;
    invalues[0] = 0;
    newvalue = false;
@@ -110,7 +111,7 @@ void loop() {
             paircount = lwrx_getpair(pair, invalues[1]);
             pr("Paircount=");
             pr(paircount);
-            if (invalues[1] <= paircount) {
+            if (invalues[1] < paircount) {
                pr(" Pair addr");
                for(byte i = 0; i< 8; i++) {
                   if(i != 1) {
@@ -125,7 +126,16 @@ void loop() {
             pr("Last packet delay mS=");
             prln(lwrx_packetinterval());
             break;
-        default:
+         case 11: // Pair controls
+            if( index > 1) pairEnforce = invalues[1];
+            if (index > 2) pairBaseOnly = invalues[2];
+            lwrx_setPairMode(pairEnforce, pairBaseOnly);
+            pr("Pair mode enforce=");
+            pr(pairEnforce);
+            pr(" baseOnly=");
+            prln(pairBaseOnly);
+            break;
+       default:
             help();
             break;
       }
@@ -212,6 +222,7 @@ void help() {
    Serial.println("  8:prmd  8,n Put into pairing mode for up to n * 100mSec");
    Serial.println("  9:prdt  9,n Get pairdata n");
    Serial.println(" 10:time 10,  Time in mS since last packet");
+   Serial.println(" 11:prct 11,e,b  Pair controls e=enforce pairing, b=address only");
    Serial.println("[] Defaults to last value if not entered");
 }
 

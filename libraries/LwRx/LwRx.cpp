@@ -7,7 +7,7 @@
 #include <LwRx.h>
 //define EEPROMaddr to location to store pair data or -1 to skip EEPROM
 //First byte is pair count followed by 8 byte pair addresses (device,dummy,5*addr,room)
-#define EEPROMaddr 16
+#define EEPROMaddr -1
 
 static byte rx_nibble[] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
 
@@ -36,6 +36,10 @@ static byte rx_num_bytes = 0; // number of bytes received
 static byte rx_paircount = 0;
 static byte rx_pairs[rx_maxpairs][8];
 static byte rx_pairtimeout = 0; // 100msec units
+//set false to responds to all messages if no pairs set up
+static boolean rx_pairEnforce = false;
+//set false to use Address, Room and Device in pairs, true just the Address part
+static boolean rx_pairBaseOnly = false;
 
 // Repeat filters
 static byte rx_repeats = 2; //msg must be repeated at least this number of times
@@ -60,12 +64,12 @@ void rx_process_bits() {
    unsigned int dur = (curr-rx_prev);
    rx_prev = curr;
    //set event based on input and duration of previous pulse
-   if (dur < 120) { //120 very short
-   } else if (dur < 500) { // normal short pulse
+   if(dur < 120) { //120 very short
+   } else if(dur < 500) { // normal short pulse
       event +=2;
-   } else if (dur < 2000) { // normal long pulse
+   } else if(dur < 2000) { // normal long pulse
       event +=4;
-   } else if (dur > 5000){ // gap between messages
+   } else if(dur > 5000){ // gap between messages
       event +=6;
    } else { //2000 > 5000
       event = 8; //illegal gap
@@ -119,7 +123,7 @@ void rx_process_bits() {
          switch(event) {
             case 2: //0 160->500
                //nothing to do wait for next positive edge but do stats
-               if (lwrx_stats_enable) {
+               if(lwrx_stats_enable) {
                lwrx_stats[rx_stat_high_max] = max(lwrx_stats[rx_stat_high_max], dur);
                lwrx_stats[rx_stat_high_min] = min(lwrx_stats[rx_stat_high_min], dur);
                lwrx_stats[rx_stat_high_ave] = lwrx_stats[rx_stat_high_ave] - (lwrx_stats[rx_stat_high_ave] >> 4) + dur;
@@ -129,7 +133,7 @@ void rx_process_bits() {
                // a single 1
                rx_buf[rx_num_bytes] = rx_buf[rx_num_bytes] << 1 | 1;
                rx_num_bits++;
-               if (lwrx_stats_enable) {
+               if(lwrx_stats_enable) {
                lwrx_stats[rx_stat_low1_max] = max(lwrx_stats[rx_stat_low1_max], dur);
                lwrx_stats[rx_stat_low1_min] = min(lwrx_stats[rx_stat_low1_min], dur);
                lwrx_stats[rx_stat_low1_ave] = lwrx_stats[rx_stat_low1_ave] - (lwrx_stats[rx_stat_low1_ave] >> 4) + dur;
@@ -140,7 +144,7 @@ void rx_process_bits() {
                rx_buf[rx_num_bytes] = rx_buf[rx_num_bytes] << 2 | 2;
                rx_num_bits++;
                rx_num_bits++;
-               if (lwrx_stats_enable) {
+               if(lwrx_stats_enable) {
                lwrx_stats[rx_stat_low0_max] = max(lwrx_stats[rx_stat_low0_max], dur);
                lwrx_stats[rx_stat_low0_min] = min(lwrx_stats[rx_stat_low0_min], dur);
                lwrx_stats[rx_stat_low0_ave] = lwrx_stats[rx_stat_low0_ave] - (lwrx_stats[rx_stat_low0_ave] >> 4) + dur;
@@ -151,12 +155,12 @@ void rx_process_bits() {
                rx_state = rx_state_idle;
                break;
          }
-         if (rx_num_bits >= 8) {
+         if(rx_num_bits >= 8) {
             rx_num_bytes++;
             rx_num_bits = 0;
-            if (rx_num_bytes >= rx_msglen) {
+            if(rx_num_bytes >= rx_msglen) {
                unsigned long currMillis = millis();
-               if (rx_repeats > 0) {
+               if(rx_repeats > 0) {
                   if((currMillis - rx_prevpkttime) / 100 > rx_timeout) { 
                      rx_repeatcount = 1;
                   } else {
@@ -166,7 +170,7 @@ void rx_process_bits() {
                         i--;
                      }
                      while((i >= 0) && (rx_msg[i] == rx_buf[i]));
-                     if (i < 0) {
+                     if(i < 0) {
                         rx_repeatcount++;
                      } else {
                         rx_repeatcount = 1;
@@ -178,15 +182,17 @@ void rx_process_bits() {
                rx_prevpkttime = currMillis;
                //If last message hasn't been read it gets overwritten
                memcpy(rx_msg, rx_buf, rx_msglen); 
-               if (rx_repeats == 0 || rx_repeatcount == rx_repeats) {
-                  if (rx_pairtimeout != 0) {
-                     if ((currMillis - rx_pairstarttime) / 100 <= rx_pairtimeout) {
-                        rx_addpairfrommsg();
-                     } else {
-                        rx_pairtimeout = 0;
+               if(rx_repeats == 0 || rx_repeatcount == rx_repeats) {
+                  if(rx_pairtimeout != 0) {
+                     if((currMillis - rx_pairstarttime) / 100 <= rx_pairtimeout) {
+                        if(rx_msg[3] == rx_nibble[1]) {
+                           rx_addpairfrommsg();
+                        } else if(rx_msg[3] == rx_nibble[0]) {
+                           rx_removePair(&rx_msg[2]);
+                        }
                      }
                   }
-                  if (rx_pairtimeout == 0 && rx_checkPairs(&rx_msg[2])) {
+                  if((!rx_pairEnforce || rx_paircount > 0) && rx_checkPairs(&rx_msg[2]) != -1) {
                      rx_msgcomplete = true;
                   }
                   rx_pairtimeout = 0;
@@ -221,7 +227,7 @@ void lwrx_settranslate(boolean rxtranslate) {
 boolean lwrx_getmessage(byte *buf, byte len) {
    boolean ret = true;
    int j=0,k=0;
-   if (rx_msgcomplete && len <= rx_msglen) {
+   if(rx_msgcomplete && len <= rx_msglen) {
       for(byte i=0; ret && i < rx_msglen; i++) {
          if(rx_translate || (len != rx_msglen)) {
             j = rx_findNibble(rx_msg[i]);
@@ -267,7 +273,7 @@ void lwrx_setfilter(byte repeats, byte timeout) {
 
 /**
   Add a pair to filter received messages
-  pairdata is device,dummy,5addr,room
+  pairdata is device,dummy,5*addr,room
   pairdata is held in translated form to make comparisons quicker
 **/
 byte lwrx_addpair(byte* pairdata) {
@@ -292,11 +298,11 @@ extern void lwrx_makepair(byte timeout) {
   Get pair data (translated back to nibble form
 **/
 extern byte lwrx_getpair(byte* pairdata, byte pairnumber) {
-   if (pairnumber < rx_paircount) {
+   if(pairnumber < rx_paircount) {
       int j;
       for(byte i=0; i<8; i++) {
          j = rx_findNibble(rx_pairs[pairnumber][i]);
-         if (j>=0) pairdata[i] = j;
+         if(j>=0) pairdata[i] = j;
       }
    }
    return rx_paircount;
@@ -316,7 +322,7 @@ extern void lwrx_clearpairing() {
   Return stats on high and low pulses
 **/
 boolean lwrx_getstats(unsigned int *stats) {
-   if (lwrx_stats_enable) {
+   if(lwrx_stats_enable) {
       memcpy(stats, lwrx_stats, 2 * rx_stat_count);
       return true;
    } else {
@@ -329,14 +335,22 @@ boolean lwrx_getstats(unsigned int *stats) {
 **/
 void lwrx_setstatsenable(boolean rx_stats_enable) {
    lwrx_stats_enable = rx_stats_enable;
-   if (!lwrx_stats_enable) {
+   if(!lwrx_stats_enable) {
       //clear down stats when disabling
       memcpy(lwrx_stats, lwrx_statsdflt, sizeof(lwrx_statsdflt));
    }
 }
+/**
+  Set pairs behaviour
+**/
+void lwrx_setPairMode(boolean pairEnforce, boolean pairBaseOnly) {
+   rx_pairEnforce = pairEnforce;
+   rx_pairBaseOnly = pairBaseOnly;
+}
+
 
 /**
-  Set things up to receive LighWaveRF 434Mhz messages
+  Set things up to receive LightWaveRF 434Mhz messages
   pin must be 2 or 3 to trigger interrupts
 **/
 void lwrx_setup(int pin) {
@@ -358,7 +372,7 @@ void lwrx_setup(int pin) {
 int rx_findNibble(byte data) {
    int i = 15;
    do {
-      if (rx_nibble[i] == data) break;
+      if(rx_nibble[i] == data) break;
       i--;
    } while (i >= 0);
    return i;
@@ -378,7 +392,7 @@ void rx_addpairfrommsg() {
   check and commit pair
 **/
 void rx_paircommit() {
-   if (rx_paircount == 0 || !rx_checkPairs(rx_pairs[rx_paircount])) {
+   if(rx_paircount == 0 || rx_checkPairs(rx_pairs[rx_paircount]) < 0) {
       if(EEPROMaddr >= 0) {
          for(byte i=0; i<8; i++) {
             EEPROM.write(EEPROMaddr + 1 + 8 * rx_paircount + i, rx_pairs[rx_paircount][i]);
@@ -393,30 +407,66 @@ void rx_paircommit() {
 
 /**
   Check to see if message matches one of the pairs
+  Returns matching pair number, -1 if not found, -2 if no pairs
 **/
-boolean rx_checkPairs(byte *buf) {
-   boolean pairfound = false;
-   if (rx_paircount ==0) {
-      return true;
+int rx_checkPairs(byte *buf) {
+   if(rx_paircount ==0) {
+      return -2;
    } else {
-      int i = rx_paircount - 1;
-      do {
-         int j = 7;
-         pairfound = true;
-         do {
-            if (j != 1) {
-               if (rx_pairs[i][j] != buf[j]) {
-                  pairfound = false;
+      int pair= rx_paircount;
+      int j = -1;
+      int jstart,jend;
+      if(rx_pairBaseOnly) {
+         // skip room(8) and dev/cmd (0,1)
+         jstart = 7;
+         jend = 2;
+      } else {
+         //include all in comparison
+         jstart = 8;
+         jend = 0;
+      }
+      while (pair>0 && j<0) {
+         pair--;
+         j = jstart;
+         while(j>jend){
+            j--;
+            if(j != 1) {
+               if(rx_pairs[pair][j] != buf[j]) {
+                  j = -1;
                }
             }
-            j--;
          }
-         while(j>=0 && pairfound);
-         i--;
-      } while (i>=0 && !pairfound);
-      return pairfound;
+      }
+      if(j >= 0) {
+         return pair;
+      } else {
+         return -1;
+      }
    }
 }
+
+/**
+  Remove an existing pair matching the buffer
+**/
+void rx_removePair(byte *buf) {
+   int pair = rx_checkPairs(buf);
+   if(pair >= 0) {
+      while (pair < rx_paircount - 1) {
+         for(byte j=0; j<8;j++) {
+            rx_pairs[pair][j] = rx_pairs[pair+1][j];
+            if(EEPROMaddr >= 0) {
+               EEPROM.write(EEPROMaddr + 1 + 8 * pair + j, rx_pairs[pair][j]);
+            }
+         }
+         pair++;
+      }
+      rx_paircount--;
+      if(EEPROMaddr >= 0) {
+         EEPROM.write(EEPROMaddr, rx_paircount);
+      }
+   }
+}
+
 
 /**
    Retrieve and set up pairing data from EEPROM if used
