@@ -62,9 +62,11 @@ extern boolean lwrx_getstats(unsigned int* stats);
 //Enable collection of stats on pulse timings
 extern void lwrx_setstatsenable(boolean rx_stats_enable);
 
+//internal support functions
+boolean rx_reportMessage();
 int rx_findNibble(byte data);
 void rx_addpairfrommsg();
 void rx_paircommit();
 void rx_removePair(byte *buf);
-int rx_checkPairs(byte *buf);
+int rx_checkPairs(byte *buf, boolean allDevices);
 void restoreEEPROMPairing();

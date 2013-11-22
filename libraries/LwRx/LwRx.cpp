@@ -9,7 +9,12 @@
 //First byte is pair count followed by 8 byte pair addresses (device,dummy,5*addr,room)
 #define EEPROMaddr -1
 
-static byte rx_nibble[] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
+static const byte rx_nibble[] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
+static const byte rx_cmd_off     = 0xF6; // raw 0
+static const byte rx_cmd_on      = 0xEE; // raw 1
+static const byte rx_cmd_mood    = 0xED; // raw 2
+static const byte rx_par0_alloff = 0x7D; // param 192-255 all off (12 in msb)
+static const byte rx_dev_15      = 0x6F; // device 15
 
 static int rx_pin = 2;
 static const byte rx_msglen = 10; // expected length of rx message
@@ -124,9 +129,9 @@ void rx_process_bits() {
             case 2: //0 160->500
                //nothing to do wait for next positive edge but do stats
                if(lwrx_stats_enable) {
-               lwrx_stats[rx_stat_high_max] = max(lwrx_stats[rx_stat_high_max], dur);
-               lwrx_stats[rx_stat_high_min] = min(lwrx_stats[rx_stat_high_min], dur);
-               lwrx_stats[rx_stat_high_ave] = lwrx_stats[rx_stat_high_ave] - (lwrx_stats[rx_stat_high_ave] >> 4) + dur;
+                  lwrx_stats[rx_stat_high_max] = max(lwrx_stats[rx_stat_high_max], dur);
+                  lwrx_stats[rx_stat_high_min] = min(lwrx_stats[rx_stat_high_min], dur);
+                  lwrx_stats[rx_stat_high_ave] = lwrx_stats[rx_stat_high_ave] - (lwrx_stats[rx_stat_high_ave] >> 4) + dur;
                }
                break;
             case 3: //1 160->500
@@ -134,9 +139,9 @@ void rx_process_bits() {
                rx_buf[rx_num_bytes] = rx_buf[rx_num_bytes] << 1 | 1;
                rx_num_bits++;
                if(lwrx_stats_enable) {
-               lwrx_stats[rx_stat_low1_max] = max(lwrx_stats[rx_stat_low1_max], dur);
-               lwrx_stats[rx_stat_low1_min] = min(lwrx_stats[rx_stat_low1_min], dur);
-               lwrx_stats[rx_stat_low1_ave] = lwrx_stats[rx_stat_low1_ave] - (lwrx_stats[rx_stat_low1_ave] >> 4) + dur;
+                  lwrx_stats[rx_stat_low1_max] = max(lwrx_stats[rx_stat_low1_max], dur);
+                  lwrx_stats[rx_stat_low1_min] = min(lwrx_stats[rx_stat_low1_min], dur);
+                  lwrx_stats[rx_stat_low1_ave] = lwrx_stats[rx_stat_low1_ave] - (lwrx_stats[rx_stat_low1_ave] >> 4) + dur;
                }
                break;
             case 5: //1 500->1500
@@ -145,9 +150,9 @@ void rx_process_bits() {
                rx_num_bits++;
                rx_num_bits++;
                if(lwrx_stats_enable) {
-               lwrx_stats[rx_stat_low0_max] = max(lwrx_stats[rx_stat_low0_max], dur);
-               lwrx_stats[rx_stat_low0_min] = min(lwrx_stats[rx_stat_low0_min], dur);
-               lwrx_stats[rx_stat_low0_ave] = lwrx_stats[rx_stat_low0_ave] - (lwrx_stats[rx_stat_low0_ave] >> 4) + dur;
+                  lwrx_stats[rx_stat_low0_max] = max(lwrx_stats[rx_stat_low0_max], dur);
+                  lwrx_stats[rx_stat_low0_min] = min(lwrx_stats[rx_stat_low0_min], dur);
+                  lwrx_stats[rx_stat_low0_ave] = lwrx_stats[rx_stat_low0_ave] - (lwrx_stats[rx_stat_low0_ave] >> 4) + dur;
                }
                break;
             default:
@@ -185,14 +190,14 @@ void rx_process_bits() {
                if(rx_repeats == 0 || rx_repeatcount == rx_repeats) {
                   if(rx_pairtimeout != 0) {
                      if((currMillis - rx_pairstarttime) / 100 <= rx_pairtimeout) {
-                        if(rx_msg[3] == rx_nibble[1]) {
+                        if(rx_msg[3] == rx_cmd_on) {
                            rx_addpairfrommsg();
-                        } else if(rx_msg[3] == rx_nibble[0]) {
+                        } else if(rx_msg[3] == rx_cmd_off) {
                            rx_removePair(&rx_msg[2]);
                         }
                      }
                   }
-                  if((!rx_pairEnforce || rx_paircount > 0) && rx_checkPairs(&rx_msg[2]) != -1) {
+                  if(rx_reportMessage()) {
                      rx_msgcomplete = true;
                   }
                   rx_pairtimeout = 0;
@@ -355,16 +360,27 @@ void lwrx_setPairMode(boolean pairEnforce, boolean pairBaseOnly) {
 **/
 void lwrx_setup(int pin) {
    restoreEEPROMPairing();
-   if(pin == 3) {
-      rx_pin = pin;
-   } else {
-      rx_pin = 2;
-   }
+   rx_pin = (pin == 3) ? 3 : 2;
    pinMode(rx_pin,INPUT);
    attachInterrupt(rx_pin - 2, rx_process_bits, CHANGE);
    memcpy(lwrx_stats, lwrx_statsdflt, sizeof(lwrx_statsdflt));
 }
 
+/**
+  Check a message to see if it should be reported under pairing / mood / all off rules
+  returns -1 if none found
+**/
+boolean rx_reportMessage() {
+   if(rx_pairEnforce && rx_paircount == 0) {
+      return false;
+   } else {
+      boolean allDevices;
+      // True if mood to device 15 or Off cmd with Allof paramater
+      allDevices = ((rx_msg[3] == rx_cmd_mood && rx_msg[2] == rx_dev_15) || 
+                    (rx_msg[3] == rx_cmd_off && rx_msg[0] == rx_par0_alloff));
+      return (rx_checkPairs(&rx_msg[2], allDevices) != -1);
+   }
+}
 /**
   Find nibble from byte
   returns -1 if none found
@@ -392,7 +408,7 @@ void rx_addpairfrommsg() {
   check and commit pair
 **/
 void rx_paircommit() {
-   if(rx_paircount == 0 || rx_checkPairs(rx_pairs[rx_paircount]) < 0) {
+   if(rx_paircount == 0 || rx_checkPairs(rx_pairs[rx_paircount], false) < 0) {
       if(EEPROMaddr >= 0) {
          for(byte i=0; i<8; i++) {
             EEPROM.write(EEPROMaddr + 1 + 8 * rx_paircount + i, rx_pairs[rx_paircount][i]);
@@ -407,9 +423,11 @@ void rx_paircommit() {
 
 /**
   Check to see if message matches one of the pairs
-  Returns matching pair number, -1 if not found, -2 if no pairs
+    if mode is pairBase only then ignore device and room
+    if allDevices is true then ignore the device number
+  Returns matching pair number, -1 if not found, -2 if no pairs defined
 **/
-int rx_checkPairs(byte *buf) {
+int rx_checkPairs(byte *buf, boolean allDevices ) {
    if(rx_paircount ==0) {
       return -2;
    } else {
@@ -421,9 +439,10 @@ int rx_checkPairs(byte *buf) {
          jstart = 7;
          jend = 2;
       } else {
-         //include all in comparison
+         //include room in comparison
          jstart = 8;
-         jend = 0;
+         //skip device comparison if allDevices true
+         jend = (allDevices) ? 2 : 0;
       }
       while (pair>0 && j<0) {
          pair--;
@@ -437,11 +456,7 @@ int rx_checkPairs(byte *buf) {
             }
          }
       }
-      if(j >= 0) {
-         return pair;
-      } else {
-         return -1;
-      }
+      return (j >= 0) ? pair : -1;
    }
 }
 
@@ -449,7 +464,7 @@ int rx_checkPairs(byte *buf) {
   Remove an existing pair matching the buffer
 **/
 void rx_removePair(byte *buf) {
-   int pair = rx_checkPairs(buf);
+   int pair = rx_checkPairs(buf, false);
    if(pair >= 0) {
       while (pair < rx_paircount - 1) {
          for(byte j=0; j<8;j++) {
@@ -466,7 +481,6 @@ void rx_removePair(byte *buf) {
       }
    }
 }
-
 
 /**
    Retrieve and set up pairing data from EEPROM if used
