@@ -148,7 +148,7 @@ void help() {
    Serial.println("Commands:");
    Serial.println("  1:init  1,repeats,[clocktick],[invert]");
    Serial.println("  2:tick  2,tlow,thigh,ttrail,tgap");
-   Serial.println("  3:addr  3,aad1,ad2,ad3,ad4,ad5");
+   Serial.println("  3:addr  3,ad1,ad2,ad3,ad4,ad5");
    Serial.println("  4:send  4,cmd,par,[room],[device]");
    Serial.println("  5:gapm  5,gapMultiplier");
    Serial.println("[] Defaults to last value if not entered");
