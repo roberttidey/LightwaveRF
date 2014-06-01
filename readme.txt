@@ -56,3 +56,6 @@ Auto pairing mode where a pair can be created from a received message
 Updated 21 Nov 2013
 Pairing now uses On commands. Off commands try to remove an existing pair.
 Extra pairing controls to enforce pairing even when no pairs are present and to control whether room/device are included
+
+Updated 1 Jun 2014
+The libraries have been restructured slightly to make it easier to port to different environments. #defines on the RX library control whether EEPROM support is used and the pin mapping onto interrupts. The TX library now splits out the timer interrupt specific code into 3 simple functions which may be adjusted to suit the environment. THree variants are included for AVR 8 bit, Due and Spark core. Onlt the first has been compiled and tested so far. 

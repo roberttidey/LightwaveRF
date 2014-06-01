@@ -3,9 +3,40 @@
 // LightwaveRF 434MHz receiver for Arduino
 // 
 // Author: Bob Tidey (robert@tideys.net)
+//Choose environment to compile for. Only one should be defined
+//For SparkCore the SparkIntervalTimer Library code needs to be present
+//For Due the DueTimer library code needs to be present
+//#define SPARK_CORE 1
+//#define DUE 1
+#define AVR328 1
 
+//Choose whether to include EEPROM support, comment or set to 0 to disable
+#define EEPROM_EN 1
+
+//Include basic library header and set RX pin logic
+#ifdef SPARK_CORE
+#include "application.h"
+#elif DUE
 #include <Arduino.h>
+#else
+#include <Arduino.h>
+// define which pins can be used for rx interrupts, leave undefined for all pins no translation
+//328
+#define PIN_NUMBERS 2,3 
+//LEONARDO
+//PIN_NUMBERS 3,2,0,1,7
+//MEGA2560
+//PIN_NUMBERS 2,3,21,20,19,18
+#endif
+
+//Include EEPROM if required to include storing device paramters in EEPROM
+#if EEPROM_EN
 #include <../EEPROM/EEPROM.h>
+//define EEPROMaddr to location to store message addr
+#define EEPROMaddr 0
+#endif
+
+
 #define rx_stat_high_ave 0
 #define rx_stat_high_max 1
 #define rx_stat_high_min 2
@@ -64,9 +95,10 @@ extern void lwrx_setstatsenable(boolean rx_stats_enable);
 
 //internal support functions
 boolean rx_reportMessage();
-int rx_findNibble(byte data);
+int16_t rx_findNibble(byte data);	//int
 void rx_addpairfrommsg();
 void rx_paircommit();
 void rx_removePair(byte *buf);
-int rx_checkPairs(byte *buf, boolean allDevices);
+int16_t rx_checkPairs(byte *buf, boolean allDevices);	//int
 void restoreEEPROMPairing();
+int getIntNo(int pin);

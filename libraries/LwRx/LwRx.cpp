@@ -4,10 +4,7 @@
 // 
 // Author: Bob Tidey (robert@tideys.net)
 
-#include <LwRx.h>
-//define EEPROMaddr to location to store pair data or -1 to skip EEPROM
-//First byte is pair count followed by 8 byte pair addresses (device,dummy,5*addr,room)
-#define EEPROMaddr -1
+#include "LwRx.h"
 
 static const byte rx_nibble[] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
 static const byte rx_cmd_off     = 0xF6; // raw 0
@@ -54,8 +51,8 @@ static unsigned long rx_prevpkttime = 0; //last packet time in milliseconds
 static unsigned long rx_pairstarttime = 0; //last msg time in milliseconds
 
 // Gather stats for pulse widths (ave is x 16)
-static const unsigned int lwrx_statsdflt[rx_stat_count] = {5000,0,5000,20000,0,2500,4000,0,500};
-static unsigned int lwrx_stats[rx_stat_count];
+static const uint16_t lwrx_statsdflt[rx_stat_count] = {5000,0,5000,20000,0,2500,4000,0,500};	//usigned int
+static uint16_t lwrx_stats[rx_stat_count];	//unsigned int
 static boolean lwrx_stats_enable = true;
 
 /**
@@ -66,7 +63,7 @@ void rx_process_bits() {
    byte event = digitalRead(rx_pin); // start setting event to the current value
    unsigned long curr = micros(); // the current time in microseconds
 
-   unsigned int dur = (curr-rx_prev);
+   uint16_t dur = (curr-rx_prev);	//unsigned int
    rx_prev = curr;
    //set event based on input and duration of previous pulse
    if(dur < 120) { //120 very short
@@ -170,7 +167,7 @@ void rx_process_bits() {
                      rx_repeatcount = 1;
                   } else {
                      //Test message same as last one
-                     int i = rx_msglen;
+                     int16_t i = rx_msglen;	//int
                      do {
                         i--;
                      }
@@ -231,7 +228,7 @@ void lwrx_settranslate(boolean rxtranslate) {
 **/
 boolean lwrx_getmessage(byte *buf, byte len) {
    boolean ret = true;
-   int j=0,k=0;
+   int16_t j=0,k=0;		//int
    if(rx_msgcomplete && len <= rx_msglen) {
       for(byte i=0; ret && i < rx_msglen; i++) {
          if(rx_translate || (len != rx_msglen)) {
@@ -304,7 +301,7 @@ extern void lwrx_makepair(byte timeout) {
 **/
 extern byte lwrx_getpair(byte* pairdata, byte pairnumber) {
    if(pairnumber < rx_paircount) {
-      int j;
+      int16_t j;	//int
       for(byte i=0; i<8; i++) {
          j = rx_findNibble(rx_pairs[pairnumber][i]);
          if(j>=0) pairdata[i] = j;
@@ -318,15 +315,15 @@ extern byte lwrx_getpair(byte* pairdata, byte pairnumber) {
 **/
 extern void lwrx_clearpairing() {
    rx_paircount = 0;
-   if(EEPROMaddr >= 0) {
-      EEPROM.write(EEPROMaddr, 0);
-   }
+#if EEPROM_EN
+   EEPROM.write(EEPROMaddr, 0);
+#endif
 }
 
 /**
   Return stats on high and low pulses
 **/
-boolean lwrx_getstats(unsigned int *stats) {
+boolean lwrx_getstats(uint16_t *stats) {	//unsigned int
    if(lwrx_stats_enable) {
       memcpy(stats, lwrx_stats, 2 * rx_stat_count);
       return true;
@@ -357,12 +354,14 @@ void lwrx_setPairMode(boolean pairEnforce, boolean pairBaseOnly) {
 /**
   Set things up to receive LightWaveRF 434Mhz messages
   pin must be 2 or 3 to trigger interrupts
+  !!! For Spark, any pin will work
 **/
 void lwrx_setup(int pin) {
    restoreEEPROMPairing();
-   rx_pin = (pin == 3) ? 3 : 2;
+	rx_pin = pin;
+   int int_no = getIntNo(rx_pin);
    pinMode(rx_pin,INPUT);
-   attachInterrupt(rx_pin - 2, rx_process_bits, CHANGE);
+   attachInterrupt(int_no, rx_process_bits, CHANGE);
    memcpy(lwrx_stats, lwrx_statsdflt, sizeof(lwrx_statsdflt));
 }
 
@@ -385,8 +384,8 @@ boolean rx_reportMessage() {
   Find nibble from byte
   returns -1 if none found
 **/
-int rx_findNibble(byte data) {
-   int i = 15;
+int16_t rx_findNibble(byte data) {	//int
+   int16_t i = 15;	//int
    do {
       if(rx_nibble[i] == data) break;
       i--;
@@ -409,15 +408,13 @@ void rx_addpairfrommsg() {
 **/
 void rx_paircommit() {
    if(rx_paircount == 0 || rx_checkPairs(rx_pairs[rx_paircount], false) < 0) {
-      if(EEPROMaddr >= 0) {
-         for(byte i=0; i<8; i++) {
-            EEPROM.write(EEPROMaddr + 1 + 8 * rx_paircount + i, rx_pairs[rx_paircount][i]);
-         }
-      }
+#if EEPROM_EN
+		for(byte i=0; i<8; i++) {
+			EEPROM.write(EEPROMaddr + 1 + 8 * rx_paircount + i, rx_pairs[rx_paircount][i]);
+		}
+      EEPROM.write(EEPROMaddr, rx_paircount+1);
+#endif
       rx_paircount++;
-      if(EEPROMaddr >= 0) {
-         EEPROM.write(EEPROMaddr, rx_paircount);
-      }
    }
 }
 
@@ -427,13 +424,13 @@ void rx_paircommit() {
     if allDevices is true then ignore the device number
   Returns matching pair number, -1 if not found, -2 if no pairs defined
 **/
-int rx_checkPairs(byte *buf, boolean allDevices ) {
+int16_t rx_checkPairs(byte *buf, boolean allDevices ) {	//int
    if(rx_paircount ==0) {
       return -2;
    } else {
-      int pair= rx_paircount;
-      int j = -1;
-      int jstart,jend;
+      int16_t pair= rx_paircount;	//int
+      int16_t j = -1;	//int
+      int16_t jstart,jend;	//int
       if(rx_pairBaseOnly) {
          // skip room(8) and dev/cmd (0,1)
          jstart = 7;
@@ -464,21 +461,25 @@ int rx_checkPairs(byte *buf, boolean allDevices ) {
   Remove an existing pair matching the buffer
 **/
 void rx_removePair(byte *buf) {
-   int pair = rx_checkPairs(buf, false);
+   int16_t pair = rx_checkPairs(buf, false);	//int
    if(pair >= 0) {
       while (pair < rx_paircount - 1) {
          for(byte j=0; j<8;j++) {
             rx_pairs[pair][j] = rx_pairs[pair+1][j];
+#if EEPROM_EN
             if(EEPROMaddr >= 0) {
                EEPROM.write(EEPROMaddr + 1 + 8 * pair + j, rx_pairs[pair][j]);
             }
+#endif
          }
          pair++;
       }
       rx_paircount--;
+#if EEPROM_EN
       if(EEPROMaddr >= 0) {
          EEPROM.write(EEPROMaddr, rx_paircount);
       }
+#endif
    }
 }
 
@@ -486,19 +487,35 @@ void rx_removePair(byte *buf) {
    Retrieve and set up pairing data from EEPROM if used
 **/
 void restoreEEPROMPairing() {
-   if(EEPROMaddr >= 0) {
-      rx_paircount = EEPROM.read(EEPROMaddr);
-      if(rx_paircount > rx_maxpairs) {
-         rx_paircount = 0;
-         EEPROM.write(EEPROMaddr, 0);
-      } else {
-         for( byte i=0; i < rx_paircount; i++) {
-            for(byte j=0; j<8; j++) {
-               rx_pairs[i][j] = EEPROM.read(EEPROMaddr + 1 + 8 * i + j);
-            }
-         }
-      }
-   }
+#if EEPROM_EN
+	rx_paircount = EEPROM.read(EEPROMaddr);
+	if(rx_paircount > rx_maxpairs) {
+		rx_paircount = 0;
+		EEPROM.write(EEPROMaddr, 0);
+	} else {
+		for( byte i=0; i < rx_paircount; i++) {
+			for(byte j=0; j<8; j++) {
+				rx_pairs[i][j] = EEPROM.read(EEPROMaddr + 1 + 8 * i + j);
+			}
+		}
+	}
+#endif
 }
-
+/**
+   Get Int Number for a Pin
+**/
+int getIntNo(int pin) {
+	int number = pin;
+#ifdef PIN_NUMBERS
+	int pins[8] = {PIN_NUMBERS};
+	int i;
+	for(i=7; i>0; i--) {
+		if(pin==pins[i]) {
+			break;
+		}
+	}
+	number = i;
+#endif
+	return number;
+}
 
