@@ -1,5 +1,7 @@
 #include <LwTx.h>
+#if EEPROM_EN
 #include <EEPROM.h>
+#endif
 #define echo true
 
 #define feedback
@@ -34,7 +36,7 @@ byte gapCount = 72;
 
 //Serial message input
 const byte maxvalues = 8;
-byte index;
+byte indexQ = 0;
 boolean newvalue;
 int invalues[maxvalues];
 
@@ -43,7 +45,7 @@ void setup() {
    Serial.setTimeout(1000 * 60);
    lwtx_setup(txpin, repeats, invert, uSec);
    prln("LwTx initial setup complete");
-   index = 0;
+   indexQ = 0;
    invalues[0] = 0;
    newvalue = false;
 }
@@ -61,19 +63,19 @@ void loop() {
       }
       switch(invalues[0]) {
          case 1: // init,repeats,uSec,invert
-            if(index > 1) repeats = invalues[1];
-            if(index > 2) uSec = invalues[2];
-            if(index > 3) invert = invalues[3];
+            if(indexQ > 1) repeats = invalues[1];
+            if(indexQ > 2) uSec = invalues[2];
+            if(indexQ > 3) invert = invalues[3];
             lwtx_setup(txpin, repeats, invert, uSec);
             pr("LwTx setup. repeats=");pr(repeats);
             pr(" uSec=");pr(uSec);
             pr(" invert=");prln(invert);
            break;
          case 2: // counts,lowCount,highCount,trailCount,gapCount
-            if(index > 1) lowCount = invalues[1];
-            if(index > 2) highCount = invalues[2];
-            if(index > 3) trailCount = invalues[3];
-            if(index > 4) gapCount = invalues[4];
+            if(indexQ > 1) lowCount = invalues[1];
+            if(indexQ > 2) highCount = invalues[2];
+            if(indexQ > 3) trailCount = invalues[3];
+            if(indexQ > 4) gapCount = invalues[4];
             lwtx_setTickCounts(lowCount, highCount, trailCount, gapCount);
             pr("LwTx Counts. low=");pr(lowCount);
             pr(" high=");pr(highCount);
@@ -83,27 +85,27 @@ void loop() {
          case 3: // address,ad1,ad2,ad3,ad4,ad5
             pr("Address set to ");
             for (byte i = 0; i < 5; i++) {
-               if(index >= 6) {
+               if(indexQ >= 6) {
                   addr[i] = invalues[i+1];
                }
                pr(addr[i]);pr("-");
             }
             prln();
             lwtx_setaddr(addr);
-            if(index >= 6) {
+            if(indexQ >= 6) {
                prln("Address updated");
             }
             break;
          case 4: // send message,cmd,par,room,device
-            if(index > 1) command = invalues[1];
-            if(index > 2) parameter = invalues[2];
-            if(index > 3) room = invalues[3];
-            if(index > 4) device = invalues[4];
+            if(indexQ > 1) command = invalues[1];
+            if(indexQ > 2) parameter = invalues[2];
+            if(indexQ > 3) room = invalues[3];
+            if(indexQ > 4) device = invalues[4];
             lwtx_cmd(command, parameter, room, device);
             prln("LwTx command sent.");
             break;
          case 5: // send gapMultiplier
-            if(index > 1) {
+            if(indexQ > 1) {
                lwtx_setGapMultiplier(invalues[1]);
                pr("LwTx gap multiplier ");
                prln(invalues[1]);
@@ -115,7 +117,7 @@ void loop() {
             help();
             break;
       }
-      index = 0;
+      indexQ = 0;
       invalues[0] = 0;
    }
    delay(100);
@@ -128,16 +130,16 @@ boolean getMessage() {
       inchar = Serial.read();
       if (echo) Serial.write(inchar);
       if(inchar == 10 || inchar == 13) {
-         if (newvalue) index++;
+         if (newvalue) indexQ++;
          newvalue = false;
          if (echo && inchar != 10) Serial.println();
          return true;
-      } else if ((index < maxvalues) && inchar >= 48 && inchar <= 57) {
-         invalues[index] = invalues[index] * 10 + (inchar - 48);
+      } else if ((indexQ < maxvalues) && inchar >= 48 && inchar <= 57) {
+         invalues[indexQ] = invalues[indexQ] * 10 + (inchar - 48);
          newvalue = true;
-      } else if (index < (maxvalues - 1)) {
-         index++;
-         invalues[index] = 0;
+      } else if (indexQ < (maxvalues - 1)) {
+         indexQ++;
+         invalues[indexQ] = 0;
          newvalue = false;
       }
    }

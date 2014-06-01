@@ -24,9 +24,9 @@
 //328
 #define PIN_NUMBERS 2,3 
 //LEONARDO
-//PIN_NUMBERS 3,2,0,1,7
+//#define PIN_NUMBERS 3,2,0,1,7
 //MEGA2560
-//PIN_NUMBERS 2,3,21,20,19,18
+//#define PIN_NUMBERS 2,3,21,20,19,18
 #endif
 
 //Include EEPROM if required to include storing device paramters in EEPROM

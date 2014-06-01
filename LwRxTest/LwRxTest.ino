@@ -1,5 +1,7 @@
 #include <LwRx.h>
+#if EEPROM_EN
 #include <EEPROM.h>
+#endif
 
 #define feedback
 #ifdef feedback
@@ -29,7 +31,7 @@ static byte pairBaseOnly = 0;
 
 //Serial message input
 const byte maxvalues = 10;
-byte index;
+byte indexQ;
 boolean newvalue;
 int invalues[maxvalues];
 
@@ -38,7 +40,7 @@ void setup() {
    lwrx_setup(2);
    Serial.begin(9600);
    prln("Set up completed and stats enabled");
-   index = 0;
+   indexQ = 0;
    invalues[0] = 0;
    newvalue = false;
 }
@@ -60,7 +62,7 @@ void loop() {
             prln("Stats disabled");
             break;
          case 4: // Add pair
-            if (index >=8) {
+            if (indexQ >=8) {
                byte pair[8];
                pair[0] = invalues[1];
                pr(pair[0]);
@@ -80,8 +82,8 @@ void loop() {
             prln("LwRx pairing cleared.");
             break;
          case 6: // Set repeat filter
-            if( index > 1) repeats = invalues[1];
-            if (index > 2) timeout = invalues[2];
+            if( indexQ > 1) repeats = invalues[1];
+            if (indexQ > 2) timeout = invalues[2];
             lwrx_setfilter(repeats, timeout);
             pr("LwRx set filter repeat=");
             pr(repeats);
@@ -89,10 +91,10 @@ void loop() {
             prln(timeout);
             break;
          case 7: // Set message display
-            if (index > 1) msglen = invalues[1];
+            if (indexQ > 1) msglen = invalues[1];
             pr("Set message display len=");
             pr(msglen);
-            if (index > 2) {
+            if (indexQ > 2) {
                lwrx_settranslate(invalues[2] !=0);
                pr(" translate ");
                pr(invalues[2] !=0);
@@ -100,7 +102,7 @@ void loop() {
             prln();
             break;
           case 8: // Put in pairing mode
-            if (index > 1) pairtimeout = invalues[1];
+            if (indexQ > 1) pairtimeout = invalues[1];
             pr("Set into pair mode for 100ms * ");
             prln(pairtimeout);
             lwrx_makepair(pairtimeout);
@@ -127,8 +129,8 @@ void loop() {
             prln(lwrx_packetinterval());
             break;
          case 11: // Pair controls
-            if( index > 1) pairEnforce = invalues[1];
-            if (index > 2) pairBaseOnly = invalues[2];
+            if( indexQ > 1) pairEnforce = invalues[1];
+            if (indexQ > 2) pairBaseOnly = invalues[2];
             lwrx_setPairMode(pairEnforce, pairBaseOnly);
             pr("Pair mode enforce=");
             pr(pairEnforce);
@@ -139,7 +141,7 @@ void loop() {
             help();
             break;
       }
-      index = 0;
+      indexQ = 0;
       invalues[0] = 0;
    }
    if (lwrx_message()) {
@@ -194,16 +196,16 @@ boolean getMessage() {
       inchar = Serial.read();
       if (echo) Serial.write(inchar);
       if(inchar == 10 || inchar == 13) {
-         if (newvalue) index++;
+         if (newvalue) indexQ++;
          newvalue = false;
          if (echo && inchar != 10) Serial.println();
          return true;
-      } else if ((index < maxvalues) && inchar >= 48 && inchar <= 57) {
-         invalues[index] = invalues[index] * 10 + (inchar - 48);
+      } else if ((indexQ < maxvalues) && inchar >= 48 && inchar <= 57) {
+         invalues[indexQ] = invalues[indexQ] * 10 + (inchar - 48);
          newvalue = true;
-      } else if (index < (maxvalues - 1)) {
-         index++;
-         invalues[index] = 0;
+      } else if (indexQ < (maxvalues - 1)) {
+         indexQ++;
+         invalues[indexQ] = 0;
          newvalue = false;
       }
    }

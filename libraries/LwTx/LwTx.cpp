@@ -245,10 +245,12 @@ extern void lw_timer_Stop() {
 
 #elif defined(DUE)
 #include "DueTimer.h"
-DueTimer txmtTimer = null;
+DueTimer txmtTimer = DueTimer::DueTimer(0);
+boolean dueDefined = false;
 extern void lw_timer_Setup(void (*isrCallback)(), int period) {
-	if (txmtTimer == null) {
+	if (!dueDefined) {
 		txmtTimer = DueTimer::getAvailable();
+		dueDefined = true;
 	}
 	isrRoutine = isrCallback;
 	noInterrupts();
