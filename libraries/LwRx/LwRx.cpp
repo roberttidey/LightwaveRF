@@ -14,6 +14,7 @@ static const byte rx_par0_alloff = 0x7D; // param 192-255 all off (12 in msb)
 static const byte rx_dev_15      = 0x6F; // device 15
 
 static int rx_pin = 2;
+static int EEPROMaddr = EEPROM_ADDR_DEFAULT;
 static const byte rx_msglen = 10; // expected length of rx message
 
 //Receive mode constants and variables
@@ -318,6 +319,13 @@ extern void lwrx_clearpairing() {
 #if EEPROM_EN
    EEPROM.write(EEPROMaddr, 0);
 #endif
+}
+
+/**
+  Set EEPROMAddr
+**/
+extern void lwrx_setEEPROMaddr(int addr) {
+   EEPROMaddr = addr;
 }
 
 /**

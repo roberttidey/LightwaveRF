@@ -5,6 +5,7 @@
 // Author: Bob Tidey (robert@tideys.net)
 
 #include "LwTx.h"
+static int EEPROMaddr = EEPROM_ADDR_DEFAULT;
 
 static byte tx_nibble[] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
 
@@ -221,6 +222,13 @@ void lwtx_setTickCounts( byte lowCount, byte highCount, byte trailCount, byte ga
 
 void lwtx_setGapMultiplier(byte gapMultiplier) {
    tx_gap_multiplier = gapMultiplier;
+}
+
+/**
+  Set EEPROMAddr
+**/
+extern void lwtx_setEEPROMaddr(int addr) {
+   EEPROMaddr = addr;
 }
 
 // There are 3 timer support routines. Variants of these may be placed here to support different environments

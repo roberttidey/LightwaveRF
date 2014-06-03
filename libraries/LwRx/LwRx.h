@@ -10,7 +10,7 @@
 //#define DUE 1
 #define AVR328 1
 
-//Choose whether to include EEPROM support, comment or set to 0 to disable
+//Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with native support
 #define EEPROM_EN 1
 
 //Include basic library header and set RX pin logic
@@ -30,11 +30,11 @@
 #endif
 
 //Include EEPROM if required to include storing device paramters in EEPROM
-#if EEPROM_EN
+#if EEPROM_EN == 1
 #include <../EEPROM/EEPROM.h>
-//define EEPROMaddr to location to store message addr
-#define EEPROMaddr 0
 #endif
+//define default EEPROMaddr to location to store message addr
+#define EEPROM_ADDR_DEFAULT 0
 
 
 #define rx_stat_high_ave 0
@@ -92,6 +92,9 @@ extern boolean lwrx_getstats(unsigned int* stats);
 
 //Enable collection of stats on pulse timings
 extern void lwrx_setstatsenable(boolean rx_stats_enable);
+
+//Set base address for EEPROM storage
+extern void lwrx_setEEPROMaddr(int addr);
 
 //internal support functions
 boolean rx_reportMessage();

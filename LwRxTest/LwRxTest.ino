@@ -1,5 +1,5 @@
 #include <LwRx.h>
-#if EEPROM_EN
+#if EEPROM_EN == 1
 #include <EEPROM.h>
 #endif
 

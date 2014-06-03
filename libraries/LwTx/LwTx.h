@@ -10,7 +10,7 @@
 //#define DUE 1
 #define AVR328 1
 
-//Choose whether to include EEPROM support, comment or set to 0 to disable
+//Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with native support
 #define EEPROM_EN 1
 
 //Include basic library header and set default TX pin
@@ -26,11 +26,11 @@
 #endif
 
 //Include EEPROM if required to include storing device paramters in EEPROM
-#if EEPROM_EN
+#if EEPROM_EN == 1
 #include <../EEPROM/EEPROM.h>
-//define EEPROMaddr to location to store message addr
-#define EEPROMaddr 0
 #endif
+//define default EEPROMaddr to location to store message addr
+#define EEPROM_ADDR_DEFAULT 0
 
 
 //Sets up basic parameters must be called at least once
@@ -57,12 +57,15 @@ extern void lwtx_setaddr(byte* addr);
 //Send Command
 extern void lwtx_cmd(byte command, byte parameter, byte room, byte device);
 
+//Set base address for EEPROM storage
+extern void lwtx_setEEPROMaddr(int addr);
+
 //Genralised timer routines go here
 //Sets up timer and the callback to the interrupt service routine
-extern void lw_timer_Setup(void (*isrCallback)(), int period);
+void lw_timer_Setup(void (*isrCallback)(), int period);
 
 //Allows changing basic tick counts from their defaults
-extern void lw_timer_Start();
+void lw_timer_Start();
 
 //Allws multiplying the gap period for creating very large gaps
-extern void lw_timer_Stop();
+void lw_timer_Stop();
