@@ -62,3 +62,7 @@ The libraries have been restructured slightly to make it easier to port to diffe
 
 Updated 3 Jun 2014
 EEPROM_EN in the headers now takes 3 values. 0 is no EEPROM support, 1 is use EEPROM with external EEPROM library, 2 is use EEPROM with native EEPROM functions if supported. The base address for EEEPROM storage defaults as before but may now also be set with an extra library call.
+
+Updated 9 Jun 2014
+Path to SparkIntervalTimer.h changed to reflect the import in Spark IDE
+readme.txt renamed to README.md

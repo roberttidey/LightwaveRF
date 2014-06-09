@@ -234,7 +234,9 @@ extern void lwtx_setEEPROMaddr(int addr) {
 // There are 3 timer support routines. Variants of these may be placed here to support different environments
 void (*isrRoutine) ();
 #if defined(SPARK_CORE)
-#include "SparkIntervalTimer.h"
+//#include "SparkIntervalTimer.h"
+//reference for library when imported in Spark IDE
+#include "SparkIntervalTimer/SparkIntervalTimer.h"
 IntervalTimer txmtTimer;
 
 extern void lw_timer_Setup(void (*isrCallback)(), int period) {
