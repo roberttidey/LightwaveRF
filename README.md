@@ -1,6 +1,6 @@
-Arduino libraries for Lightwave RX and TX at 433MHz
+Arduino, Spark and Raspberry libraries for Lightwave RX and TX at 433MHz
 
-LxRx - a library for LightwaveRF receive
+LxRx - a Arduino / Spark library for LightwaveRF receive
  Reception is interrupt driven
  Reception is buffered, Foreground should read an available messsge before next one is received
  lwrx_setup(int pin) - initialise reception, pin can be 2 or 3
@@ -9,7 +9,7 @@ LxRx - a library for LightwaveRF receive
  boolean lwrx_message() returns true if message available
  boolean lwrx_getmessage(byte* buf, byte* len) returns 10 byte message into buf
 
-LxTx - a library for LightwaveRF transmit
+LxTx - a Arduino / Spark library for LightwaveRF transmit
  Transmission is interrupt driven
  Foreground sends a message which is buffered and sent in background
  lwtx_setup(int pin, byte repeatcount) - initialise transmission, pin can be any pin
@@ -22,6 +22,9 @@ LxTx - a library for LightwaveRF transmit
  LxTxTest - simple Test sketch for LwTx lib, sends one messages repeatedly
  LxRxTest - simple Test sketch for LwRx lib, monitors and prints messages on serial port
  LxTxTestEx - extended Test sketch for LwTx lib, responds to serial coomands to send message and adjust protocol values
+ 
+lwrf.py - An experimental library for rx and tx on Raspberry
+ Currently only the rx side is functional
 
 Notes: As these libraries use interrupt service routines they may have issues with other
 services using interrupts like Serial. The time spent in the isrs is kept very small to minimise
@@ -66,3 +69,8 @@ EEPROM_EN in the headers now takes 3 values. 0 is no EEPROM support, 1 is use EE
 Updated 9 Jun 2014
 Path to SparkIntervalTimer.h changed to reflect the import in Spark IDE
 readme.txt renamed to README.md
+
+Updated 17 Jan 2015
+First version of an experimental rx / tx python library for Raspberry Pi
+using the pigpio library for fast IO access
+Only RX side functional at present. TX side being debugged
