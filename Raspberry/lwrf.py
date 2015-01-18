@@ -23,7 +23,7 @@ RX_MSG_TIMEOUT = 1000000
 
 TX_HIGH = 280
 TX_LOW = 980
-TX_GAP = 0.0108 # 10.8mSec
+TX_GAP = 10800
 
 _SYMBOL = [0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F]
 
@@ -41,6 +41,7 @@ class tx():
       Instantiate a transmitter with the Pi and the transmit gpio.
       """
       self.pi = pi
+      self.txgpio = txgpio
       self.txbit = (1<<txgpio)
       self.wave_id = None
       pi.wave_add_new()
@@ -59,38 +60,43 @@ class tx():
       ret = 0
       if len(data) <> MESSAGE_BYTES:
          return -1
-      for r in range(repeat):
-         self.wf = []
-         self.cancel()
-         # Message start pulse
+      self.cancel()
+      #Set TX high and wait to get agc of RX trained
+      self.pi.write(self.txgpio, 1)
+      time.sleep(TX_GAP / 1000000)
+      #Define a single message waveform
+      self.wf = []
+      # Pre Message low gap
+      self.wf.append(pigpio.pulse(0, self.txbit, TX_GAP))
+      # Message start pulse
+      self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
+      self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
+      
+      for i in data:
+         # Byte start pulse
          self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
          self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
+         self.byte = _SYMBOL[i & 0x0F]
+         for j in range(8):
+            if self.byte & (0x80>>j):
+               self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
+               self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
+            else:
+               self.wf.append(pigpio.pulse(0, 0, TX_LOW))
          
-         for i in data:
-            # Byte start pulse
-            self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
-            self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
-            self.byte = _SYMBOL[i] & 0x0F
-            for j in range(8):
-               if self.byte & (1<<j):
-                  self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
-                  self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
-               else:
-                  self.wf.append(pigpio.pulse(0, 0, TX_LOW))
-            
-         # Message end pulse
-         self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
-         self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
+      # Message end pulse
+      self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
+      self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
 
-         self.pi.wave_add_generic(self.wf)
-         self.wave_id = self.pi.wave_create()
-
-         if self.wave_id >= 0:
+      self.pi.wave_add_generic(self.wf)
+      self.wave_id = self.pi.wave_create()
+      if self.wave_id >= 0:
+         for r in range(repeat):
             self.pi.wave_send_once(self.wave_id)
-         else:
-            return -2
-         if r < repeat - 1:
-            time.sleep(TX_GAP)
+            while self.pi.wave_tx_busy(): # wait for waveform to be sent
+               time.sleep(0.001)
+      else:
+         return -2
       return ret
 
 
@@ -260,19 +266,22 @@ if __name__ == "__main__":
    RX=24
    TX=25
    TX_TEST = [0,0,0,1,15,1,5,10,12,2]
+   TX_REPEAT = 10
+   RX_REPEAT = 0
 
    pi = pigpio.pi() # Connect to local Pi.
 
-   rx = lwrf.rx(pi, RX, 2) # Specify Pi, rx gpio, and repeat.
+   rx = lwrf.rx(pi, RX, RX_REPEAT) # Specify Pi, rx gpio, and repeat.
    tx = lwrf.tx(pi, TX) # Specify Pi, tx gpio, and baud.
 
-   print "Transmit test", tx.put(TX_TEST, 3)
+   print "Transmit test sending", TX_TEST, TX_REPEAT, "times"
+   tx.put(TX_TEST, TX_REPEAT)
       
    start = time.time()
    
    while (time.time()-start) < 30:
       if rx.ready():
-         print("".join("%01X" % x for x in rx.get()))
+         print "Received","".join("%01X" % x for x in rx.get())
       time.sleep(0.010)
    rx.cancel()
    tx.cancel()

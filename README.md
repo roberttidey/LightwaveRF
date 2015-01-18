@@ -74,3 +74,6 @@ Updated 17 Jan 2015
 First version of an experimental rx / tx python library for Raspberry Pi
 using the pigpio library for fast IO access
 Only RX side functional at present. TX side being debugged
+
+Updated 18 Jan 2015
+Both RX and TX sides of Raspberry python library now functional
