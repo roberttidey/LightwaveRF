@@ -77,3 +77,8 @@ Only RX side functional at present. TX side being debugged
 
 Updated 18 Jan 2015
 Both RX and TX sides of Raspberry python library now functional
+
+Updated 20 Jan 2015
+Although Raspberry python works it is consuming all the CPU. This is because
+the PIGPIO python i/f adds a lot of overhead and the RX receiver has background
+noise transitions all the time. Working on optimisation strategies.

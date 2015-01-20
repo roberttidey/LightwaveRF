@@ -129,7 +129,6 @@ class rx():
       self.pi = pi
       self.rxgpio = rxgpio
       self.messages = []
-      self.lastTick = None
       self.duplicate = False
       self.repeat = repeat
       self.repeatCount = 0
@@ -139,94 +138,89 @@ class rx():
       self.message = [0]*(MESSAGE_BYTES)
       self.state = RX_STATE_IDLE;
       self.data = 0
-      self.edge = 0
 
       pi.set_mode(rxgpio, pigpio.INPUT)
+      self.lastTick = self.pi.get_current_tick()
       self.cb = pi.callback(rxgpio, pigpio.EITHER_EDGE, self._cb)
 
    def _cb(self, gpio, level, tick):
-
-      if self.lastTick is not None:
-         if level == pigpio.TIMEOUT:
-            self.pi.set_watchdog(self.rxgpio, 0) # Switch watchdog off.
-         else:
-
+      if level <> pigpio.TIMEOUT:
          # Get microseconds since last change
-            self.edge += pigpio.tickDiff(self.lastTick, tick)
-            if level <> self.lastLevel:
-               if self.edge < 120: #very short pulse
-                  trans = level
-               elif self.edge < 500: #normal short pulse
-                  trans = level + 2
-               elif self.edge < 2000: #normal long pulse
-                  trans = level + 4
-               elif self.edge > 5000: # gap between messages
-                  trans = level + 6
+         pulse = tick - self.lastTick
+         self.lastTick = tick
+         if pulse < 150: #very short pulse so ignore it
+            return
+         elif self.state == RX_STATE_IDLE and pulse <= 5000: #quick check to see worth proceeding
+            return
+         elif pulse < 500: #normal short pulse
+            trans = level + 2
+         elif pulse < 2000: #normal long pulse
+            trans = level + 4
+         elif pulse > 5000: # gap between messages
+            trans = level + 6
+         else:
+            trans = 8
+         #State machine using nested ifs
+         if self.state == RX_STATE_IDLE:
+            if trans == 7: # 1 after a message gap
+               self.state = RX_STATE_MSGSTARTFOUND
+               self.duplicate = True
+         elif self.state == RX_STATE_MSGSTARTFOUND:
+            if trans == 2: # nothing to do wait for next 1
+               trans = trans
+            elif trans == 3: # start of a byte detected
+               self.byte = 0
+               self.state = RX_STATE_BYTESTARTFOUND
+            else:
+               self.state = RX_STATE_IDLE
+         elif self.state == RX_STATE_BYTESTARTFOUND:
+            if trans == 2: # nothing to do wait for next 1
+               trans = trans
+            elif trans == 3: # 1 160->500
+               self.data = 0
+               self.bit = 0
+               self.state = RX_STATE_GETBYTE
+            elif trans == 5: # 0 500->1500 starts with a 0 so enter it
+               self.data = 0
+               self.bit = 1
+               self.state = RX_STATE_GETBYTE
+            else:
+               self.state = RX_STATE_IDLE
+         elif self.state == RX_STATE_GETBYTE:
+            if trans == 2: # nothing to do wait for next 1
+               trans = trans
+            elif trans == 3: # 1 160->500
+               self.data = self.data << 1 | 1
+               self.bit +=1
+            elif trans == 5: # 500 - 1500 a 1 followed by a 0
+               self.data = self.data << 2 | 2
+               self.bit +=2
+            else:
+               self.state = RX_STATE_IDLE
+            # Check if byte complete
+            if self.bit >= 8:
+               # Translate symbols to nibbles and enter message
+               self.data = _sym2nibble(self.data)
+               if self.data <> self.message[self.byte]: # Is it same as last packet
+                  self.duplicate = False
+                  self.repeatCount = 0
+               self.message[self.byte] = self.data
+               self.byte +=1
+               self.bit = 0
+               if self.byte >= MESSAGE_BYTES: # Is packet complete
+                  if pigpio.tickDiff(self.messageTick, self.lastTick) > RX_MSG_TIMEOUT or self.messageTick == 0:
+                     # Long time since last message so reset the counter
+                     self.repeatCount = 0
+                  elif self.duplicate:
+                     self.repeatCount +=1
+                  if self.repeat == 0 or self.repeatCount == self.repeat:
+                     self.messages.append(self.message[0:MESSAGE_BYTES])
+                  self.state = RX_STATE_IDLE
+                  self.messageTick = self.messageTick
                else:
-                  trans = 8
-               self.edge = 0
-               #State machine using nested ifs
-               if self.state == RX_STATE_IDLE:
-                  if trans == 7: # 1 after a message gap
-                     self.state = RX_STATE_MSGSTARTFOUND
-                     self.duplicate = True
-               elif self.state == RX_STATE_MSGSTARTFOUND:
-                  if trans == 2: # nothing to do wait for next 1
-                     trans = trans
-                  elif trans == 3: # start of a byte detected
-                     self.byte = 0
-                     self.state = RX_STATE_BYTESTARTFOUND
-                  else:
-                     self.state = RX_STATE_IDLE
-               elif self.state == RX_STATE_BYTESTARTFOUND:
-                  if trans == 2: # nothing to do wait for next 1
-                     trans = trans
-                  elif trans == 3: # 1 160->500
-                     self.data = 0
-                     self.bit = 0
-                     self.state = RX_STATE_GETBYTE
-                  elif trans == 5: # 0 500->1500 starts with a 0 so enter it
-                     self.data = 0
-                     self.bit = 1
-                     self.state = RX_STATE_GETBYTE
-                  else:
-                     self.state = RX_STATE_IDLE
-               elif self.state == RX_STATE_GETBYTE:
-                  if trans == 2: # nothing to do wait for next 1
-                     trans = trans
-                  elif trans == 3: # 1 160->500
-                     self.data = self.data << 1 | 1
-                     self.bit +=1
-                  elif trans == 5: # 500 - 1500 a 1 followed by a 0
-                     self.data = self.data << 2 | 2
-                     self.bit +=2
-                  else:
-                     self.state = RX_STATE_IDLE
-                  # Check if byte complete
-                  if self.bit >= 8:
-                     # Translate symbols to nibbles and enter message
-                     self.data = _sym2nibble(self.data)
-                     if self.data <> self.message[self.byte]: # Is it same as last packet
-                        self.duplicate = False
-                        self.repeatCount = 0
-                     self.message[self.byte] = self.data
-                     self.byte +=1
-                     self.bit = 0
-                     if self.byte >= MESSAGE_BYTES: # Is packet complete
-                        if pigpio.tickDiff(self.messageTick, tick) > RX_MSG_TIMEOUT or self.messageTick == 0:
-                           # Long time since last message so reset the counter
-                           self.repeatCount = 0
-                        elif self.duplicate:
-                           self.repeatCount +=1
-                        if self.repeat == 0 or self.repeatCount == self.repeat:
-                           self.messages.append(self.message[0:MESSAGE_BYTES])
-                        self.state = RX_STATE_IDLE
-                        self.messageTick = tick
-                     else:
-                        self.state = RX_STATE_BYTESTARTFOUND
-
-      self.lastTick = tick
-      self.lastLevel = level
+                  self.state = RX_STATE_BYTESTARTFOUND
+      else:
+         self.pi.set_watchdog(self.rxgpio, 0) # Switch watchdog off.
 
    def get(self):
       """
