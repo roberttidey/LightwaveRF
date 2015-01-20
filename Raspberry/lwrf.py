@@ -47,10 +47,6 @@ class tx():
       pi.wave_add_new()
       pi.set_mode(txgpio, pigpio.OUTPUT)
 
-   def put(self, data, repeat):
-      for r in range(repeat):
-         put1(self, data)
-
    def put(self, data, repeat=1):
       """
       Transmit a message repeat times
