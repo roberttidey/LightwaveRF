@@ -82,3 +82,10 @@ Updated 20 Jan 2015
 Although Raspberry python works it is consuming all the CPU. This is because
 the PIGPIO python i/f adds a lot of overhead and the RX receiver has background
 noise transitions all the time. Working on optimisation strategies.
+
+Updated 21 Jan 2015
+There is now a c++ version which runs on Raspberry directly linked to PIGPIO.
+This is much more efficient than using th epigpio python interface and CPU usage
+is now very low (< 7%). A simple test c program is included but it should also be possible
+to make a version which runs in the background and makes the Lightwave messages
+available via FIFO pipes.

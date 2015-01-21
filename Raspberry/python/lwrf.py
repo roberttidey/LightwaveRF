@@ -44,6 +44,7 @@ class tx():
       self.txgpio = txgpio
       self.txbit = (1<<txgpio)
       self.wave_id = None
+      self.txBusy = False
       pi.wave_add_new()
       pi.set_mode(txgpio, pigpio.OUTPUT)
 
@@ -55,44 +56,47 @@ class tx():
       """
       ret = 0
       if len(data) <> MESSAGE_BYTES:
-         return -1
-      self.cancel()
-      #Set TX high and wait to get agc of RX trained
-      self.pi.write(self.txgpio, 1)
-      time.sleep(TX_GAP / 1000000)
-      #Define a single message waveform
-      self.wf = []
-      # Pre Message low gap
-      self.wf.append(pigpio.pulse(0, self.txbit, TX_GAP))
-      # Message start pulse
-      self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
-      self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
-      
-      for i in data:
-         # Byte start pulse
+         ret = -1
+      else:
+         self.cancel()
+         self.txBusy = True
+         #Set TX high and wait to get agc of RX trained
+         self.pi.write(self.txgpio, 1)
+         time.sleep(TX_GAP / 1000000)
+         #Define a single message waveform
+         self.wf = []
+         # Pre Message low gap
+         self.wf.append(pigpio.pulse(0, self.txbit, TX_GAP))
+         # Message start pulse
          self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
          self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
-         self.byte = _SYMBOL[i & 0x0F]
-         for j in range(8):
-            if self.byte & (0x80>>j):
-               self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
-               self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
-            else:
-               self.wf.append(pigpio.pulse(0, 0, TX_LOW))
          
-      # Message end pulse
-      self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
-      self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
+         for i in data:
+            # Byte start pulse
+            self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
+            self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
+            self.byte = _SYMBOL[i & 0x0F]
+            for j in range(8):
+               if self.byte & (0x80>>j):
+                  self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
+                  self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
+               else:
+                  self.wf.append(pigpio.pulse(0, 0, TX_LOW))
+            
+         # Message end pulse
+         self.wf.append(pigpio.pulse(self.txbit, 0, TX_HIGH))
+         self.wf.append(pigpio.pulse(0, self.txbit, TX_HIGH))
 
-      self.pi.wave_add_generic(self.wf)
-      self.wave_id = self.pi.wave_create()
-      if self.wave_id >= 0:
-         for r in range(repeat):
-            self.pi.wave_send_once(self.wave_id)
-            while self.pi.wave_tx_busy(): # wait for waveform to be sent
-               time.sleep(0.001)
-      else:
-         return -2
+         self.pi.wave_add_generic(self.wf)
+         self.wave_id = self.pi.wave_create()
+         if self.wave_id >= 0:
+            for r in range(repeat):
+               self.pi.wave_send_once(self.wave_id)
+               while self.pi.wave_tx_busy(): # wait for waveform to be sent
+                  time.sleep(0.001)
+         else:
+            ret = -2
+         self.txBusy = False
       return ret
 
 
@@ -100,7 +104,7 @@ class tx():
       """
       Returns True if a new message may be transmitted.
       """
-      return not self.pi.wave_tx_busy()
+      return not self.pi.wave_tx_busy() and not self.txBusy
 
    def cancel(self):
       """
