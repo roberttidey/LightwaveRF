@@ -137,7 +137,7 @@ void LwrfRX::_callback(int gpio, int level, uint32_t tick)
       uint32_t pulse = tick - lastTick;
       lastTick = tick;
       int trans = 0;
-      if (pulse > 150)
+      if (pulse > 125)
       {
          if (pulse < 500)
          {
@@ -149,6 +149,7 @@ void LwrfRX::_callback(int gpio, int level, uint32_t tick)
          }
          else if (pulse > 5000)
          {
+            rState = RX_STATE_IDLE;
             trans = level + 6; //gap between messages
          }
          else

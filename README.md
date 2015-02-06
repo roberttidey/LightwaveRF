@@ -89,3 +89,10 @@ This is much more efficient than using th epigpio python interface and CPU usage
 is now very low (< 7%). A simple test c program is included but it should also be possible
 to make a version which runs in the background and makes the Lightwave messages
 available via FIFO pipes.
+
+Updated 6 Feb 2015
+There is now a Raspberry Pi version using the recently introduced custom
+extension method to pigpio. This makes it easy to access from languages via
+the pigpiod daemon while maintaining low processor usage. A python example is given.
+This is now the preferred Raspberry pi method and I won't be doing a separate pipe
+access method.

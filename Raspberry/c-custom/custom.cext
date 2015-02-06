@@ -1,0 +1,381 @@
+/*
+This version is for pigpio version 26+
+Customised for LightwaveRF tx and receive
+*/
+
+#include "pigpio.h"
+#include "custom_lwrf.h"
+
+int gpioCustom1(unsigned arg1, unsigned arg2, char *argx, unsigned count)
+{
+   int i;
+   unsigned max;
+
+   DBG(DBG_USER, "arg1=%d arg2=%d count=%d [%s]",
+      arg1, arg2, count, myBuf2Str(count, argx));
+
+   CHECK_INITED;
+
+   /* for dummy just return max parameter */
+
+   if (arg1 > arg2) max = arg1; else max = arg2;
+
+   for (i=0; i<count; i++) if (argx[i] > max) max = argx[i];
+
+   return max;
+}
+
+
+int gpioCustom2(unsigned arg1, char *argx, unsigned count,
+                char *retBuf, unsigned retMax)
+{
+   int ret = -1;
+
+   DBG(DBG_USER, "arg1=%d count=%d [%s] retMax=%d", arg1, count, myBuf2Str(count, argx), retMax);
+   CHECK_INITED;
+   //arg1 used to select different custom extensions
+   switch(arg1)
+   {
+      //Custom extensions for LightwaveRF
+      case CUSTOM_LWRF:
+         if (count > 0)
+         {
+            switch(argx[0])
+            {
+               case CUSTOM_LWRF_TX_INIT:
+                  if (count > 1)
+                  {
+                     lwtxGpio = argx[1];
+                     lwtxDebug[0] = 0;
+                     ret = lwtxGpio;
+                  }
+                  break;
+               case CUSTOM_LWRF_TX_BUSY:
+                  if(gpioWaveTxBusy())
+                  {
+                     ret = 1;
+                  }
+                  else
+                  {
+                     ret = 0;
+                  }
+                  break;
+               case CUSTOM_LWRF_TX_PUT:
+                  if (count > LWRF_MSGLEN + 1)
+                  {
+                     char repeat = argx[1];
+                     if (repeat > LWRF_MAXREPEAT)
+                     {
+                        repeat = LWRF_MAXREPEAT;
+                     }
+                     ret = lwtxPut(argx+2, repeat);
+                  }
+                  else
+                  {
+                     ret = -2;
+                  }
+                  break;
+               case CUSTOM_LWRF_TX_CANCEL:
+                  if(gpioWaveTxBusy())
+                  {
+                     gpioWaveTxStop();
+                  }
+                  ret = 0;
+                  break;
+               case CUSTOM_LWRF_TX_DEBUG:
+                  strcpy(retBuf, lwtxDebug);
+                  ret = strlen(retBuf);
+                  break;
+               case CUSTOM_LWRF_RX_INIT:
+                  if (count > 2)
+                  {
+                     lwrxGpio = argx[1];
+                     lwrxRepeat = argx[2];
+                     lwrxDuplicate = 0;
+                     lwrxRepeatCount = 0;
+                     lwrxLastMessageTick = 0;
+                     lwrxBit = 0;
+                     lwrxByte = 0;
+                     lwrxState = LWRX_STATE_IDLE;
+                     lwrxData = 0;
+                     lwrxLastTick = gpioTick();
+                     lwrxDebug[0] = 0;
+                     gpioSetMode(lwrxGpio, PI_INPUT);
+                     gpioSetAlertFunc(lwrxGpio, _lwrxCallback);
+                     ret = 0;
+                     gpioSetMode(23, PI_OUTPUT);
+                     gpioWrite(23,0);
+
+                  }
+                  break;
+               case CUSTOM_LWRF_RX_CLOSE:
+                  gpioSetAlertFunc(lwrxGpio, NULL);
+                  ret = 0;
+                  break;
+               case CUSTOM_LWRF_RX_READY:
+                  ret = lwrxQueueSize();
+                  break;
+               case CUSTOM_LWRF_RX_GET:
+                  if (lwrxQueueSize() > 0)
+                  {
+                     //Pop message off queue into return buffer
+                     strcpy(retBuf, lwrxMsgQueue[lwrxQueueTail]);
+                     lwrxQueueTail++; if (lwrxQueueTail > (LWRF_MAXMESSAGES - 1)) lwrxQueueTail = 0;
+                     ret = LWRF_MSGLEN;
+                  }
+                  break;
+               case CUSTOM_LWRF_RX_DEBUG:
+                  strcpy(retBuf, lwrxDebug);
+                  ret = strlen(retBuf);
+                  break;
+            }
+         }
+      default:
+         // Other custom extensions go here
+         break;
+   }
+   return ret;
+}
+
+/*
+   LWRF custom support routines
+*/
+
+int SYMBOLS[16] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
+char NIBBLES[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+
+//Not normally used but can be pulsed during parts of decoding
+//Only activated if this is defined
+//#define LWRF_DEBUGPIN 23
+
+int lwtxPut(char* msg, char repeat)
+{
+   /*
+      Sets up a message waveform and sends it
+   */
+   gpioPulse_t wf[200 * LWRF_MAXREPEAT];
+   uint32_t tPulse, txId;
+   uint32_t txbit = (1<<lwtxGpio);
+   int ret = 0;
+   
+   gpioSetMode(lwtxGpio, PI_OUTPUT);
+
+   gpioWaveTxStop();
+   gpioWaveClear();
+   //Send a high for a bit to train agc
+   tPulse = 0;
+   wf[tPulse].gpioOn = txbit; wf[tPulse].gpioOff = 0; wf[tPulse].usDelay = LWTX_GAP; tPulse++;
+   char r;
+   for(r = 0; r < repeat; r++)
+   {
+      //Message Gap
+      wf[tPulse].gpioOn = 0; wf[tPulse].gpioOff = txbit; wf[tPulse].usDelay = LWTX_GAP; tPulse++; 
+      //Message start pulse
+      wf[tPulse].gpioOn = txbit; wf[tPulse].gpioOff = 0; wf[tPulse].usDelay = LWTX_HIGH; tPulse++; 
+      wf[tPulse].gpioOn = 0; wf[tPulse].gpioOff = txbit; wf[tPulse].usDelay = LWTX_HIGH; tPulse++;
+      int i;      
+      for(i = 0; i < LWRF_MSGLEN; i++)
+      {
+         //Byte start pulse
+         wf[tPulse].gpioOn = txbit; wf[tPulse].gpioOff = 0; wf[tPulse].usDelay = LWTX_HIGH; tPulse++; 
+         wf[tPulse].gpioOn = 0; wf[tPulse].gpioOff = txbit; wf[tPulse].usDelay = LWTX_HIGH; tPulse++;
+         char symc = msg[i];
+         int sym = (symc >= 'A') ? (symc - 'A' + 10) : (symc - '0');
+         sym = SYMBOLS[sym & 0xF];
+         int j;
+         for(j = 0; j < 8; j++)
+         {
+            if(sym & (0x80>>j))
+            {
+               wf[tPulse].gpioOn = txbit; wf[tPulse].gpioOff = 0; wf[tPulse].usDelay = LWTX_HIGH; tPulse++; 
+               wf[tPulse].gpioOn = 0; wf[tPulse].gpioOff = txbit; wf[tPulse].usDelay = LWTX_HIGH; tPulse++;
+            }
+            else
+            {
+               wf[tPulse].gpioOn = 0; wf[tPulse].gpioOff = 0; wf[tPulse].usDelay = LWTX_LOW; tPulse++;
+            }
+         }
+      }
+      //Message end pulse
+      wf[tPulse].gpioOn = txbit; wf[tPulse].gpioOff = 0; wf[tPulse].usDelay = LWTX_HIGH; tPulse++; 
+      wf[tPulse].gpioOn = 0; wf[tPulse].gpioOff = txbit; wf[tPulse].usDelay = LWTX_HIGH; tPulse++;
+   }
+   ret = tPulse;
+   gpioWaveAddGeneric(tPulse, wf);
+   txId = gpioWaveCreate();
+   gpioWaveTxSend(txId, PI_WAVE_MODE_ONE_SHOT);
+   return ret;
+}
+
+void _lwrxCallback(int gpio, int level, uint32_t tick)
+{
+   if (level != PI_TIMEOUT)
+   {
+      // Get microseconds since last change
+      uint32_t pulse = tick - lwrxLastTick;
+      lwrxLastTick = tick;
+      int trans = 0;
+      if (pulse > 125)
+      {
+         if (pulse < 500)
+         {
+            trans = level + 2; //normal short pulse
+         }
+         else if (pulse < 2000)
+         {
+            trans = level + 4; //normal long pulse
+         }
+         else if (pulse > 5000)
+         {
+            trans = level + 6; //gap between messages
+            lwrxState = LWRX_STATE_IDLE;
+         }
+         else
+         {
+            trans = 8; //shouldn't happen
+         }
+         //State machine
+         switch(lwrxState)
+         {
+            case LWRX_STATE_IDLE:
+               switch(trans)
+               {
+                  case 7:  //1 after a message gap
+                     lwrxState = LWRX_STATE_MSGSTARTFOUND;
+                     lwrxDuplicate = 1;
+                     //Debug Pulse 30uSec to show message start
+#ifdef LWRF_DEBUGPIN
+                     gpioWrite(LWRF_DEBUGPIN,1);
+                     gpioSleep(PI_TIME_RELATIVE,0,30);
+                     gpioWrite(LWRF_DEBUGPIN,0);
+#endif
+                     break;
+               }
+               break;
+            case LWRX_STATE_MSGSTARTFOUND:
+               switch(trans)
+               {
+                  case 2:  //nothing to do wait for next 1
+                     break;
+                  case 3:  //start of a byte detected
+                     lwrxByte = 0;
+                     lwrxState = LWRX_STATE_BYTESTARTFOUND;
+                     break;
+                  default: //not good start again
+                     lwrxState = LWRX_STATE_IDLE;
+                     break;
+               }
+               break;
+            case LWRX_STATE_BYTESTARTFOUND:
+               switch(trans)
+               {
+                  case 2:  //nothing to do wait for next 1
+                     break;
+                  case 3:  //1 bit detected
+                     lwrxData = 0;
+                     lwrxBit = 0;
+                     lwrxState = LWRX_STATE_GETBYTE;
+                     break;
+                  case 5:  //starts with 0 so enter it
+                     lwrxData = 0;
+                     lwrxBit = 1;
+                     lwrxState = LWRX_STATE_GETBYTE;
+                     break;
+                  default: //not good start again
+                     lwrxState = LWRX_STATE_IDLE;
+                     break;
+               }
+               break;
+            case LWRX_STATE_GETBYTE:
+               switch(trans)
+               {
+                  case 2:  //nothing to do wait for next 1
+                     break;
+                  case 3:  //1 bit detected
+                     lwrxData = lwrxData << 1 | 1;
+                     lwrxBit++;
+                     break;
+                  case 5:  //0 so enter it
+                     lwrxData = lwrxData << 2 | 2;
+                     lwrxBit++;
+                     lwrxBit++;
+                     break;
+                  default: //not good start again
+                     lwrxState = LWRX_STATE_IDLE;
+                     break;
+               }
+               //Check if byte complete
+               if(lwrxBit >= 8)
+               {
+                  //Translate symbols to nibbles and enter message
+                  int symbol = lwrxData;
+                  lwrxData = 15;
+                  while(lwrxData > 0 && symbol != SYMBOLS[lwrxData])
+                  {
+                     lwrxData--;
+                  }
+                  lwrxData = NIBBLES[lwrxData];
+                  if (lwrxData != lwrxMessage[lwrxByte]) //# Is it same as last packet
+                  {
+                     lwrxDuplicate = 0;
+                     lwrxRepeatCount = 0;
+                  }
+                  lwrxMessage[lwrxByte] = lwrxData;
+                  lwrxByte++;
+                  lwrxBit = 0;
+                  if (lwrxByte >= LWRF_MSGLEN) //Is packet complete
+                  {
+                     //Debug Pulse 30uSec to show message start
+#ifdef LWRF_DEBUGPIN
+                     gpioWrite(LWRF_DEBUGPIN,1);
+                     gpioSleep(PI_TIME_RELATIVE,0,30);
+                     gpioWrite(LWRF_DEBUGPIN,0);
+#endif
+                     if (((lwrxLastTick - lwrxLastMessageTick) > LWRX_MSG_TIMEOUT) || lwrxLastMessageTick == 0)
+                     {
+                        //Long time since last message so reset the counter
+                        lwrxRepeatCount = 0;
+                     }
+                     else if (lwrxDuplicate > 0)
+                     {
+                        lwrxRepeatCount++;
+                     }
+                     if (lwrxRepeat == 0 || lwrxRepeatCount == lwrxRepeat)
+                     {
+                        //Discard oldest message if queue getting full
+                        if (lwrxQueueSize() >= LWRF_MAXMESSAGES - 1)
+                        {
+                           lwrxQueueTail++; if (lwrxQueueTail > (LWRF_MAXMESSAGES - 1)) lwrxQueueTail = 0;
+                        }
+                        // Push message into queue
+                        strcpy(lwrxMsgQueue[lwrxQueueHead], lwrxMessage);
+                        lwrxQueueHead++; if (lwrxQueueHead > LWRF_MAXMESSAGES - 1) lwrxQueueHead = 0;
+                     }
+                     lwrxState = LWRX_STATE_IDLE;
+                     lwrxLastMessageTick = lwrxLastTick;
+                  }
+                  else
+                  {
+                     lwrxState = LWRX_STATE_BYTESTARTFOUND;
+                  }
+               }
+               break;
+         }
+      }
+   }
+   else
+   {
+      gpioSetWatchdog(lwrxGpio, 0);
+   }
+}
+
+int lwrxQueueSize()
+{
+   int size = lwrxQueueHead - lwrxQueueTail;
+   if (size < 0)
+   {
+      size += LWRF_MAXMESSAGES;
+   }
+   return size;
+}
+
