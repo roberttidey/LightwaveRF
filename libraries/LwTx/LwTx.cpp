@@ -275,6 +275,44 @@ extern void lw_timer_Start() {
 extern void lw_timer_Stop() {
 	txmtTimer.stop();
 }
+
+#elif defined(PRO32U4)
+//32u4 which uses the TIMER3
+extern void lw_timer_Setup(void (*isrCallback)(), int period) {
+    isrRoutine = isrCallback; // unused here as callback is direct
+    byte clock = (period / 4) - 1;;
+    cli();//stop interrupts
+    //set timer2 interrupt at  clock uSec (default 140)
+    TCCR3A = 0;// set entire TCCR2A register to 0
+    TCCR3B = 0;// same for TCCR2B
+    TCNT3  = 0;//initialize counter value to 0
+    // set compare match register for clock uSec
+    OCR3A = clock;// = 16MHz Prescale to 4 uSec * (counter+1)
+    // turn on CTC mode
+    TCCR3B |= (1 << WGM32);
+    // Set bits for 64 prescaler
+    TCCR3B |= (1 << CS31);   
+    TCCR3B |= (1 << CS30);   
+    // disable timer compare interrupt
+    TIMSK3 &= ~(1 << OCIE3A);
+    sei();//enable interrupts
+}
+
+extern void lw_timer_Start() {
+   //enable timer 2 interrupts
+    TIMSK3 |= (1 << OCIE3A);
+}
+
+extern void lw_timer_Stop() {
+    //disable timer 2 interrupt
+    TIMSK3 &= ~(1 << OCIE3A);
+}
+
+//Hand over to real isr
+ISR(TIMER3_COMPA_vect){
+    isrTXtimer();
+}
+
 #else
 //Default case is Arduino Mega328 which uses the TIMER2
 extern void lw_timer_Setup(void (*isrCallback)(), int period) {
@@ -312,3 +350,4 @@ ISR(TIMER2_COMPA_vect){
 }
 
 #endif
+

@@ -3,11 +3,14 @@
 // LightwaveRF 434MHz tx interface for Arduino
 // 
 // Author: Bob Tidey (robert@tideys.net)
-//Choose environment to compile for. Only one should be defined
+//Choose one of the following environments to compile for. Only one should be defined
 //For SparkCore the SparkIntervalTimer Library code needs to be present
 //For Due the DueTimer library code needs to be present
+
 //#define SPARK_CORE 1
 //#define DUE 1
+//#define PRO32U4 1
+//#define AVR328 1
 #define AVR328 1
 
 //Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with native support
