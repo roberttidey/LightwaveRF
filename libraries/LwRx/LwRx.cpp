@@ -513,17 +513,6 @@ void restoreEEPROMPairing() {
    Get Int Number for a Pin
 **/
 int getIntNo(int pin) {
-	int number = pin;
-#ifdef PIN_NUMBERS
-	int pins[8] = {PIN_NUMBERS};
-	int i;
-	for(i=7; i>0; i--) {
-		if(pin==pins[i]) {
-			break;
-		}
-	}
-	number = i;
-#endif
-	return number;
+   return digitalPinToInterrupt(pin);
 }
 

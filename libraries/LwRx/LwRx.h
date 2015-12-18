@@ -20,13 +20,6 @@
 #include <Arduino.h>
 #else
 #include <Arduino.h>
-// define which pins can be used for rx interrupts, leave undefined for all pins no translation
-//328
-#define PIN_NUMBERS 2,3 
-//LEONARDO
-//#define PIN_NUMBERS 3,2,0,1,7
-//MEGA2560
-//#define PIN_NUMBERS 2,3,21,20,19,18
 #endif
 
 //Include EEPROM if required to include storing device paramters in EEPROM
