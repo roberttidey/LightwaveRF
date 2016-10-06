@@ -13,6 +13,9 @@
 //#define AVR328 1
 #define AVR328 1
 
+//For AVR328 normal assumption is 16MHz clock, to use 8MHz uncomment define
+//#define AVR328_8MHZ 1
+
 //Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with native support
 #define EEPROM_EN 1
 

@@ -96,3 +96,6 @@ extension method to pigpio. This makes it easy to access from languages via
 the pigpiod daemon while maintaining low processor usage. A python example is given.
 This is now the preferred Raspberry pi method and I won't be doing a separate pipe
 access method.
+
+Updated 6 October 2016
+AVR328 expected a 16MHz clock. A define in the LWTx.h allows for 8MHz operation

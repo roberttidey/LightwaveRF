@@ -317,18 +317,29 @@ ISR(TIMER3_COMPA_vect){
 //Default case is Arduino Mega328 which uses the TIMER2
 extern void lw_timer_Setup(void (*isrCallback)(), int period) {
 	isrRoutine = isrCallback; // unused here as callback is direct
-	byte clock = (period / 4) - 1;;
+#if defined(AVR328_8MHZ)
+	//1 usec input
+	byte clock = period - 1;
+#else
+	//4 usec input
+	byte clock = (period / 4) - 1;
+#end if
 	cli();//stop interrupts
 	//set timer2 interrupt at  clock uSec (default 140)
 	TCCR2A = 0;// set entire TCCR2A register to 0
 	TCCR2B = 0;// same for TCCR2B
 	TCNT2  = 0;//initialize counter value to 0
 	// set compare match register for clock uSec
-	OCR2A = clock;// = 16MHz Prescale to 4 uSec * (counter+1)
+	OCR2A = clock;
 	// turn on CTC mode
 	TCCR2A |= (1 << WGM21);
+#if defined(AVR328_8MHZ)
+	// Set CS11 bit for 8 prescaler
+	TCCR2B |= (1 << CS22);
+#else
 	// Set CS11 bit for 64 prescaler
-	TCCR2B |= (1 << CS22);   
+	TCCR2B |= (1 << CS22);
+#endif
 	// disable timer compare interrupt
 	TIMSK2 &= ~(1 << OCIE2A);
 	sei();//enable interrupts
