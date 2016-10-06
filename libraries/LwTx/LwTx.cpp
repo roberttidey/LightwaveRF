@@ -335,7 +335,7 @@ extern void lw_timer_Setup(void (*isrCallback)(), int period) {
 	TCCR2A |= (1 << WGM21);
 #if defined(AVR328_8MHZ)
 	// Set CS11 bit for 8 prescaler
-	TCCR2B |= (1 << CS22);
+	TCCR2B |= (1 << CS21);
 #else
 	// Set CS11 bit for 64 prescaler
 	TCCR2B |= (1 << CS22);
