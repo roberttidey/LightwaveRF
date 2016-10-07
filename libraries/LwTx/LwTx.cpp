@@ -323,7 +323,7 @@ extern void lw_timer_Setup(void (*isrCallback)(), int period) {
 #else
 	//4 usec input
 	byte clock = (period / 4) - 1;
-#end if
+#endif
 	cli();//stop interrupts
 	//set timer2 interrupt at  clock uSec (default 140)
 	TCCR2A = 0;// set entire TCCR2A register to 0
