@@ -14,6 +14,9 @@
  
 #define echo true
 
+//ESP12 tested with pin 13
+#define RX_PIN 2
+
 unsigned long millisOffset = millis();
 
 //Msg data
@@ -36,9 +39,9 @@ boolean newvalue;
 int invalues[maxvalues];
 
 void setup() {
-   // set up with rx into pin 2
-   lwrx_setup(2);
-   Serial.begin(9600);
+   // set up with rx pin
+   lwrx_setup(RX_PIN);
+   Serial.begin(115200);
    prln("Set up completed and stats enabled");
    indexQ = 0;
    invalues[0] = 0;
@@ -168,7 +171,7 @@ void printMsg(byte *msg, byte len) {
    Retrieve and print out current pulse width stats
 **/
 void printStats() {
-  unsigned int stats[rx_stat_count];
+  uint16_t stats[rx_stat_count];
   
   if (lwrx_getstats(stats)) {
     Serial.print("Stats, ");

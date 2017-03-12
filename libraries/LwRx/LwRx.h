@@ -81,7 +81,7 @@ extern unsigned long lwrx_packetinterval();
 extern void lwrx_clearpairing();
 
 //Return stats on pulse timings
-extern boolean lwrx_getstats(unsigned int* stats);
+extern boolean lwrx_getstats(unsigned uint16_t* stats);
 
 //Enable collection of stats on pulse timings
 extern void lwrx_setstatsenable(boolean rx_stats_enable);
