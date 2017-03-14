@@ -101,4 +101,4 @@ Updated 6 October 2016
 AVR328 expected a 16MHz clock. A define in the LWTx.h allows for 8MHz operation
 
 Updated 14 March 2017
-Now supports ESP8266 modules using same base Arduino libraries
+Now supports ESP8266 modules using same base Arduino libraries. A #define determines whether timer0 or timer1 is used

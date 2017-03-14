@@ -13,6 +13,8 @@
 //#define AVR328 1
 //#define ESP8266 1
 #define ESP8266 1
+//Use following define to which timer to use (0 or 1)
+#define ESP8266_TIMER 1
 //For AVR328 normal assumption is 16MHz clock, to use 8MHz uncomment define
 //#define AVR328_8MHZ 1
 

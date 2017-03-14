@@ -141,7 +141,7 @@ void ISR_ATTR isrTXtimer() {
          break;
      }
    }
-#ifdef ESP8266
+#if defined(ESP8266) && ESP8266_TIMER == 0
 	 espNext += espPeriod;
      timer0_write(espNext);
 #endif
@@ -278,22 +278,38 @@ extern void lw_timer_Stop() {
 
 #elif defined(ESP8266)
 extern void lw_timer_Setup(void (*isrCallback)(), int period) {
-	espPeriod = 80*period;
 	isrRoutine = isrCallback;
+#if ESP8266_TIMER == 1
+	espPeriod = 5*period;
+	timer1_isr_init();
+#else
+	espPeriod = 80*period;
 	timer0_isr_init();
+#endif
 }
 
 extern void lw_timer_Start() {
 	noInterrupts();
+#if ESP8266_TIMER == 1
+	timer1_attachInterrupt(isrRoutine);
+	timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+	timer1_write(espPeriod);
+#else
 	timer0_attachInterrupt(isrRoutine);
 	espNext = ESP.getCycleCount()+1000;
 	timer0_write(espNext);
+#endif
 	interrupts();
 }
 
 extern void lw_timer_Stop() {
 	noInterrupts();
+#if ESP8266_TIMER == 1
+	timer1_disable();
+	timer1_detachInterrupt();
+#else
 	timer0_detachInterrupt();
+#endif
 	interrupts();
 }
 
