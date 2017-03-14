@@ -4,9 +4,15 @@ byte msg[] = {4,0,3,0,5,9,3,0,1,2};
 long timeout = 0;
 
 void setup() {
+#ifdef ESP8266
+   Serial.begin(115200);
+   //Transmit on pin 14, 10 repeats,no invert, 330uSec tick)
+   lwtx_setup(14, 10, 0, 330);
+#else
   Serial.begin(9600);
-  //Transmit on pin 7, 10 repeats,no invert, 140uSec tick)
-  lwtx_setup(7, 10, 0, 140);
+   //Transmit on pin 7, 10 repeats,no invert, 140uSec tick)
+   lwtx_setup(7, 10, 0, 140);
+#endif
 }
 
 void loop() {

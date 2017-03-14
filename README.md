@@ -1,6 +1,6 @@
-Arduino, Spark and Raspberry libraries for Lightwave RX and TX at 433MHz
+Arduino, Particle, ESP8266 and Raspberry libraries for Lightwave RX and TX at 433MHz
 
-LxRx - a Arduino / Spark library for LightwaveRF receive
+LxRx - a Arduino / Particle library for LightwaveRF receive
  Reception is interrupt driven
  Reception is buffered, Foreground should read an available messsge before next one is received
  lwrx_setup(int pin) - initialise reception, pin can be 2 or 3
@@ -9,7 +9,7 @@ LxRx - a Arduino / Spark library for LightwaveRF receive
  boolean lwrx_message() returns true if message available
  boolean lwrx_getmessage(byte* buf, byte* len) returns 10 byte message into buf
 
-LxTx - a Arduino / Spark library for LightwaveRF transmit
+LxTx - a Arduino / Particle / ESP8266 library for LightwaveRF transmit
  Transmission is interrupt driven
  Foreground sends a message which is buffered and sent in background
  lwtx_setup(int pin, byte repeatcount) - initialise transmission, pin can be any pin
@@ -99,3 +99,6 @@ access method.
 
 Updated 6 October 2016
 AVR328 expected a 16MHz clock. A define in the LWTx.h allows for 8MHz operation
+
+Updated 14 March 2017
+Now supports ESP8266 modules using same base Arduino libraries

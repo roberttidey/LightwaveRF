@@ -30,12 +30,25 @@ static byte tx_state = 0;
 static byte tx_toggle_count = 3;
 static uint16_t tx_gap_repeat = 0;	//unsigned int
 
-// These set the pulse durations in ticks
+// These set the pulse durations in ticks. ESP uses 330uSec base tick, else use 140uSec
+#ifdef ESP8266
+static byte tx_low_count = 3; // total number of ticks in a low (990 uSec)
+static byte tx_high_count = 2; // total number of ticks in a high (660 uSec)
+static byte tx_trail_count = 1; //tick count to set line low (330 uSec)
+// Use with low repeat counts
+static byte tx_gap_count = 33; // Inter-message gap count (10.9 msec)
+static unsigned long espPeriod = 0; //Holds interrupt timer0 period
+static unsigned long espNext = 0; //Holds interrupt next count
+//#define ISR_ATTR ICACHE_RAM_ATTR
+#define ISR_ATTR inline
+#else
 static byte tx_low_count = 7; // total number of ticks in a low (980 uSec)
 static byte tx_high_count = 4; // total number of ticks in a high (560 uSec)
 static byte tx_trail_count = 2; //tick count to set line low (280 uSec)
 // Use with low repeat counts
 static byte tx_gap_count = 72; // Inter-message gap count (10.8 msec)
+#define ISR_ATTR 
+#endif
 //Gap multiplier byte is used to multiply gap if longer periods are needed for experimentation
 //If gap is 255 (35msec) then this to give a max of 9 seconds
 //Used with low repeat counts to find if device times out
@@ -60,7 +73,8 @@ void lwtx_settranslate(boolean txtranslate)
     tx_translate = txtranslate;
 }
 
-void isrTXtimer() {
+
+void ISR_ATTR isrTXtimer() {
    //Set low after toggle count interrupts
    tx_toggle_count--;
    if (tx_toggle_count == tx_trail_count) {
@@ -127,6 +141,10 @@ void isrTXtimer() {
          break;
      }
    }
+#ifdef ESP8266
+	 espNext += espPeriod;
+     timer0_write(espNext);
+#endif
 }
 
 /**
@@ -207,8 +225,13 @@ void lwtx_setup(int pin, byte repeats, byte invert, int period) {
 	if (period > 32 && period < 1000) {
 		period1 = period; 
 	} else {
+#if defined(ESP8266)
+		//default 330 uSec
+		period1 = 330;
+#else
 		//default 140 uSec
 		period1 = 140;
+#endif
 	}
 	lw_timer_Setup(isrTXtimer, period1);
 }
@@ -251,6 +274,27 @@ extern void lw_timer_Start() {
 }
 extern void lw_timer_Stop() {
 	txmtTimer.interrupt_SIT(INT_DISABLE);
+}
+
+#elif defined(ESP8266)
+extern void lw_timer_Setup(void (*isrCallback)(), int period) {
+	espPeriod = 80*period;
+	isrRoutine = isrCallback;
+	timer0_isr_init();
+}
+
+extern void lw_timer_Start() {
+	noInterrupts();
+	timer0_attachInterrupt(isrRoutine);
+	espNext = ESP.getCycleCount()+1000;
+	timer0_write(espNext);
+	interrupts();
+}
+
+extern void lw_timer_Stop() {
+	noInterrupts();
+	timer0_detachInterrupt();
+	interrupts();
 }
 
 #elif defined(DUE)

@@ -11,18 +11,21 @@
 //#define DUE 1
 //#define PRO32U4 1
 //#define AVR328 1
-#define AVR328 1
-
+//#define ESP8266 1
+#define ESP8266 1
 //For AVR328 normal assumption is 16MHz clock, to use 8MHz uncomment define
 //#define AVR328_8MHZ 1
 
 //Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with native support
-#define EEPROM_EN 1
+#define EEPROM_EN 0
 
 //Include basic library header and set default TX pin
 #ifdef SPARK_CORE
 #include "application.h"
 #define TX_PIN_DEFAULT D3
+#elif ESP8266
+#include <Arduino.h>
+#define TX_PIN_DEFAULT 13
 #elif DUE
 #include <Arduino.h>
 #define TX_PIN_DEFAULT 3

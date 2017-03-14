@@ -41,9 +41,16 @@ boolean newvalue;
 int invalues[maxvalues];
 
 void setup() {
-   Serial.begin(9600);
    Serial.setTimeout(1000 * 60);
-   lwtx_setup(txpin, repeats, invert, uSec);
+#ifdef ESP8266
+   Serial.begin(115200);
+   //Transmit on pin 14, 10 repeats,no invert, 330uSec tick)
+   lwtx_setup(14, 10, 0, 330);
+#else
+  Serial.begin(9600);
+   //Transmit on pin 7, 10 repeats,no invert, 140uSec tick)
+   lwtx_setup(7, 10, 0, 140);
+#endif
    prln("LwTx initial setup complete");
    indexQ = 0;
    invalues[0] = 0;
