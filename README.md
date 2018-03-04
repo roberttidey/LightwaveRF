@@ -26,13 +26,9 @@ LxTx - a Arduino / Particle / ESP8266 library for LightwaveRF transmit
 lwrf.py - An experimental library for rx and tx on Raspberry
  Currently only the rx side is functional
 
-Notes:
-As these libraries use interrupt service routines they may have issues with other
+Notes: As these libraries use interrupt service routines they may have issues with other
 services using interrupts like Serial. The time spent in the isrs is kept very small to minimise
-risks.
-The LxTx library for Arduino type devices also uses Timer2 and assumes 16MHz clock rates,
-although a define may be used to support 8MHz operation.
-As the library supports different device types then you must set the defines at the top of the .h files to the correct device.
+risks. The LxTx library also uses Timer2 and assumes 16MHz clock rates.
 
 Updates 9 Nov 2013
 LxRx library window for 0 detection widened
