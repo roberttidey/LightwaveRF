@@ -39,8 +39,8 @@ static byte tx_trail_count = 1; //tick count to set line low (330 uSec)
 static byte tx_gap_count = 33; // Inter-message gap count (10.9 msec)
 static unsigned long espPeriod = 0; //Holds interrupt timer0 period
 static unsigned long espNext = 0; //Holds interrupt next count
-//#define ISR_ATTR ICACHE_RAM_ATTR
-#define ISR_ATTR inline
+#define ISR_ATTR ICACHE_RAM_ATTR
+//#define ISR_ATTR inline
 #else
 static byte tx_low_count = 7; // total number of ticks in a low (980 uSec)
 static byte tx_high_count = 4; // total number of ticks in a high (560 uSec)

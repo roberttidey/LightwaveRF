@@ -60,7 +60,13 @@ static boolean lwrx_stats_enable = true;
   Pin change interrupt routine that identifies 1 and 0 LightwaveRF bits
   and constructs a message when a valid packet of data is received.
 **/
-void rx_process_bits() { 
+#if ESP8266CPU
+	#define ISRATTR ICACHE_RAM_ATTR
+#else
+	#define ISRATTR
+#endif
+
+void ISRATTR rx_process_bits() {
    byte event = digitalRead(rx_pin); // start setting event to the current value
    unsigned long curr = micros(); // the current time in microseconds
 

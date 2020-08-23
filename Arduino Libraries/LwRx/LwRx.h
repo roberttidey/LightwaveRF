@@ -8,15 +8,17 @@
 //For Due the DueTimer library code needs to be present
 //#define SPARK_CORE 1
 //#define DUE 1
-#define AVR328 1
 
+#define ESP8266CPU 1
 //Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with native support
-#define EEPROM_EN 1
+#define EEPROM_EN 0
 
 //Include basic library header and set RX pin logic
 #ifdef SPARK_CORE
 #include "application.h"
 #elif DUE
+#include <Arduino.h>
+#elif ESP8266CPU
 #include <Arduino.h>
 #else
 #include <Arduino.h>
